@@ -10,6 +10,7 @@ const suites = [
     ['tests/extra.test.cjs'],
     ['tests/refresh.test.cjs'],
     ['tests/favorites.test.cjs'],
+    ['tests/sets.test.cjs'],
     ...['phase1', 'phase2', 'phase3', 'phase4', 'header', 'cache', 'progressive'].map(name => [`tests/${name}.replay.test.cjs`, capture, 'replay'])
 ];
 let failed = 0;

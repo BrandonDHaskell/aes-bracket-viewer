@@ -221,13 +221,20 @@
         return Number.isFinite(number) ? number : null;
     }
 
+    // Lowercase key maps for the case-insensitive fallback, built once per object (AES payload
+    // objects are never modified after loading).
+    const lowerKeyCache = new WeakMap();
     function firstNumericField(object, names) {
         if (!object || typeof object !== 'object') return null;
         for (const name of names) {
             const value = numericValue(object[name]);
             if (value != null) return value;
         }
-        const lower = new Map(Object.keys(object).map(key => [key.toLowerCase(), key]));
+        let lower = lowerKeyCache.get(object);
+        if (!lower) {
+            lower = new Map(Object.keys(object).map(key => [key.toLowerCase(), key]));
+            lowerKeyCache.set(object, lower);
+        }
         for (const name of names) {
             const key = lower.get(name.toLowerCase());
             if (!key) continue;
