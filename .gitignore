@@ -1,0 +1,9 @@
+# Node folders
+node_modules/
+dist/
+
+# Test data
+tests/fixtures/
+
+# Environment
+.env

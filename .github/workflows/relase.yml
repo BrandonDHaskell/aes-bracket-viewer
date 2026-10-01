@@ -1,0 +1,43 @@
+# Publishes a release when a version tag is pushed (npm run release:patch does this).
+# Installed copies of the script update from this release's assets automatically.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Check the tag matches package.json
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          if [ "$GITHUB_REF_NAME" != "v$VERSION" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version $VERSION" >&2
+            exit 1
+          fi
+
+      - run: npm run build
+      - run: npm run lint
+      - run: npm test
+
+      - name: Publish release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            dist/aes-bracket-viewer.user.js \
+            dist/aes-bracket-viewer.meta.js \
+            --title "AES Bracket Viewer $GITHUB_REF_NAME" \
+            --generate-notes

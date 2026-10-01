@@ -1,0 +1,27 @@
+{
+  "name": "aes-bracket-viewer",
+  "version": "3.0.0",
+  "private": true,
+  "description": "Coach's dashboard userscript for AES Event Results.",
+  "userscript": {
+    "repository": "BrandonDHaskell/aes-bracket-viewer"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "lint": "eslint dist/aes-bracket-viewer.user.js",
+    "test": "node scripts/test.mjs",
+    "check": "npm run build && npm run lint && npm test",
+    "release:patch": "npm run check && npm version patch && git push --follow-tags",
+    "release:minor": "npm run check && npm version minor && git push --follow-tags",
+    "release:major": "npm run check && npm version major && git push --follow-tags"
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0",
+    "globals": "^15.0.0",
+    "jsdom": "^24.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/BrandonDHaskell/aes-bracket-viewer.git"
+  }
+}

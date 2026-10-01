@@ -1,0 +1,34 @@
+const fs = require('fs'); const { JSDOM } = require('jsdom');
+const src = fs.readFileSync(__dirname + '/smoke.test.cjs', 'utf8');
+let code = src.slice(src.indexOf('const club ='), src.indexOf('let data = fixtures();'));
+code = code.replace("const D1 = '2030-10-05'", "const D1 = '2026-09-20'").replace("const D2 = '2030-10-06'", "const D2 = '2030-10-06'");
+eval(code + '; global.fixtures = fixtures;');
+const script = fs.readFileSync(require('path').join(__dirname, '..', 'dist', 'aes-bracket-viewer.user.js'), 'utf8');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+(async () => {
+    const dom = new JSDOM('<!doctype html><html><head></head><body></body></html>', { url: 'https://results.advancedeventsystems.com/event/TESTKEY/home', pretendToBeVisual: true, runScripts: 'outside-only' });
+    const w = dom.window; w.matchMedia = () => ({ matches: false }); w.Element.prototype.scrollTo = () => {};
+    const notes = [];
+    w.Notification = function (title, opts) { notes.push(`${title}: ${opts.body}`); };
+    w.Notification.permission = 'granted';
+    w.localStorage.setItem('aes-bracket-viewer:prefs:v2', JSON.stringify({ notify: true }));
+    w.localStorage.setItem('aes/favorite/teams/TESTKEY', JSON.stringify({ TeamIds: [1] }));
+    const data = fixtures(); const calls = [];
+    Object.assign(data['/poolsheet/101'].Matches[2], { HasScores: true, Sets: [{ FirstTeamScore: 25, SecondTeamScore: 15 }, { FirstTeamScore: 25, SecondTeamScore: 17 }] });
+    w.fetch = async u => { const p = String(u).replace('/api/event/TESTKEY', ''); calls.push(p); return p in data ? { ok: true, status: 200, json: async () => JSON.parse(JSON.stringify(data[p])) } : { ok: false, status: 404, json: async () => null }; };
+    w.eval(script); const d = w.document;
+    d.getElementById('aes-bracket-viewer-button').click(); await sleep(300);
+    // Close, post a result for R2P1M1 (team 1 beats team 4), bump timestamp, reopen.
+    d.querySelector('[data-action="close"]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+    const m = data['/poolsheet/301'].Matches[0];
+    Object.assign(m, { HasScores: true, Sets: [{ FirstTeamScore: 25, SecondTeamScore: 21 }, { FirstTeamScore: 25, SecondTeamScore: 19 }] });
+    data['/timestamp'] = { LastUpdatedTimestamp: '2030-10-06T09:00:00' };
+    calls.length = 0;
+    d.getElementById('aes-bracket-viewer-button').click(); await sleep(400);
+    const sheetCalls = calls.filter(c => c.startsWith('/poolsheet/'));
+    const ok1 = sheetCalls.includes('/poolsheet/301') && !sheetCalls.includes('/poolsheet/101');
+    console.log(`${ok1 ? 'PASS' : 'FAIL'}  incremental refresh refetches only unsettled pools  [${sheetCalls.join(', ')}]`);
+    const ok2 = notes.some(n => /WIN vs Delta 18/.test(n));
+    console.log(`${ok2 ? 'PASS' : 'FAIL'}  result notification sent  [${notes.join(' / ')}]`);
+    w.close(); process.exit(ok1 && ok2 ? 0 : 1);
+})();
