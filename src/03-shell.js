@@ -229,7 +229,7 @@ function handleAction(action, element = null) {
             updateViewControls();
             break;
         case 'reset-filters': resetFilters(); break;
-        case 'refresh': loadData({ full: true }); break;
+        case 'refresh': loadData({ full: true, useSaved: false }); break;
         case 'toggle-settings':
             state.showSettings = !state.showSettings;
             if (state.showSettings) populateSettings();
@@ -610,7 +610,7 @@ function renderDiagnostics() {
         ['Division', `${state.divisionName} (${state.divisionId})`],
         ['Time zone', `${effectiveTimeZone()} (${zoneSource})`],
         ['Playdays', state.dailyPlays.map(day => day.date).join(', ')],
-        ['Pool sheets', `${state.poolSheets.size} loaded, ${state.poolSheetsReused} reused from cache, ${state.poolSheetFailures.length} failed`],
+        ['Pool sheets', `${state.poolSheets.size} loaded: ${state.poolSheetsFromSaved} from saved copies, ${state.poolSheetsReused} reused from this visit, ${state.poolSheetFailures.length} failed`],
         ['Graph', `${count('match')} matches, ${count('standings')} pools, ${count('entry')} routes, ${advancement} result/placement edges (${feeds} from bracket structure)`],
         ['Unresolved references', state.unresolved.length],
         ['Duplicate WIN/LOSS branches', state.outcomeConflicts.length],

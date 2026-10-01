@@ -14,11 +14,12 @@ module.exports = async function boot(extra = {}) {
   const favorites = extra.favorites === undefined ? [150886, 138490, 238635, 24843] : extra.favorites;
   if (favorites) w.localStorage.setItem(`aes/favorite/teams/${key}`, JSON.stringify({ TeamIds: favorites }));
   if (extra.prefs) w.localStorage.setItem('aes-bracket-viewer:prefs:v2', JSON.stringify(extra.prefs));
+  if (extra.indexedDB) { w.indexedDB = extra.indexedDB; w.IDBKeyRange = require('fake-indexeddb').IDBKeyRange; }
   if (extra.setup) extra.setup(w);
   if (extra.now) { const real = w.Date; const t = extra.now; w.Date = class extends real { constructor(...a) { super(...(a.length ? a : [t])); } static now() { return t; } }; }
   // Optional mutation of a private copy of the capture, e.g. to post results for a scenario.
   const table = extra.mutate ? (extra.mutate(JSON.parse(JSON.stringify(routes))) || routes) : routes;
-  w.fetch = async u => { const p = decodeURIComponent(String(u)).replace(`/api/event/${key}`, ''); return p in table ? { ok: true, status: 200, json: async () => JSON.parse(JSON.stringify(table[p])) } : { ok: false, status: 404, json: async () => null }; };
+  w.fetch = async u => { const p = decodeURIComponent(String(u)).replace(`/api/event/${key}`, ''); if (extra.onFetch) await extra.onFetch(p); return p in table ? { ok: true, status: 200, json: async () => JSON.parse(JSON.stringify(table[p])) } : { ok: false, status: 404, json: async () => null }; };
   const t0 = Date.now(); w.eval(script);
   const doc = w.document; doc.getElementById('aes-bracket-viewer-button').click();
   for (let i = 0; i < 200 && !/AES updated|could not/.test(doc.querySelector('[data-role="status-text"]')?.textContent || ''); i++) await new Promise(r => setTimeout(r, 50));

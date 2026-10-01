@@ -76,7 +76,9 @@ function restoreData(snapshot) {
     Object.assign(state, snapshot);
 }
 
-async function loadData({ full = true } = {}) {
+// full: re-download sheets already in memory from this visit. useSaved: allow saved copies of
+// finished pools from earlier visits (the Refresh button turns this off).
+async function loadData({ full = true, useSaved = true } = {}) {
     if (state.loading || !state.eventKey) return;
     state.loading = true;
     setRefreshDisabled(true);
@@ -121,25 +123,39 @@ async function loadData({ full = true } = {}) {
         const poolSheetFailures = [];
         const toFetch = [];
         let reused = 0;
+        let fromSaved = 0;
+        const settledEarlier = (sheet, date) => Boolean(sheet) && date < today && poolSheetSettled(sheet);
+        const saved = useSaved
+            ? await readSavedSheets(state.eventKey, [...poolPlays].filter(([, date]) => date < today).map(([playId]) => playId))
+            : new Map();
         for (const [playId, date] of poolPlays) {
-            const cached = sameDivision ? state.poolSheets.get(playId) : null;
-            if (!full && cached && date < today && poolSheetSettled(cached)) {
-                poolSheets.set(playId, cached);
+            const inMemory = sameDivision ? state.poolSheets.get(playId) : null;
+            if (!full && settledEarlier(inMemory, date)) {
+                poolSheets.set(playId, inMemory);
                 reused += 1;
+            } else if (settledEarlier(saved.get(playId), date)) {
+                poolSheets.set(playId, saved.get(playId));
+                fromSaved += 1;
             } else {
                 toFetch.push(playId);
             }
         }
         if (!hadData) setStatus(`Loading ${toFetch.length} pool sheets`);
+        const downloaded = new Map();
         await mapLimit(toFetch, DEFAULTS.poolSheetConcurrency, async playId => {
             try {
-                poolSheets.set(playId, await api(`/poolsheet/${playId}`));
+                const sheet = await api(`/poolsheet/${playId}`);
+                poolSheets.set(playId, sheet);
+                downloaded.set(playId, sheet);
             } catch (error) {
                 const cached = sameDivision ? state.poolSheets.get(playId) : null;
                 if (cached) poolSheets.set(playId, cached);
                 poolSheetFailures.push({ playId, error: error.message + (cached ? ' (showing last good copy)' : '') });
             }
         });
+
+        // Keep copies of newly downloaded pools that are finished and from an earlier day.
+        saveSheets(state.eventKey, new Map([...downloaded].filter(([playId, sheet]) => settledEarlier(sheet, poolPlays.get(playId)))));
 
         const previousSchedule = hadData && sameDivision ? snapshotTeamSchedule() : null;
         const snapshot = captureData();
@@ -155,6 +171,7 @@ async function loadData({ full = true } = {}) {
                 poolSheets,
                 poolSheetFailures,
                 poolSheetsReused: reused,
+                poolSheetsFromSaved: fromSaved,
                 lastUpdatedTimestamp: timestamp?.LastUpdatedTimestamp || state.lastUpdatedTimestamp,
                 lastLoadedAt: Date.now(),
                 lastSyncedAt: Date.now()
