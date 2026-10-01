@@ -2,7 +2,29 @@
  * 3. Viewer shell, event wiring, settings, diagnostics
  * ======================================================================= */
 
-const $ = selector => document.querySelector(`#${APP_ID} ${selector}`);
+// Viewer elements are looked up once and reused while they stay in the page. Elements that a
+// render re-creates are detached from the page, so they are simply looked up again.
+const elementCache = new Map();
+const $ = selector => {
+    const cached = elementCache.get(selector);
+    if (cached?.isConnected) return cached;
+    const element = document.querySelector(`#${APP_ID} ${selector}`);
+    if (element) elementCache.set(selector, element);
+    else elementCache.delete(selector);
+    return element;
+};
+
+// The view panels and the tab buttons never change after the viewer is created.
+let shellLists = null;
+function viewerLists(app) {
+    if (!shellLists || !shellLists.panels[0]?.isConnected) {
+        shellLists = {
+            panels: [...app.querySelectorAll('[data-panel]')],
+            tabs: [...app.querySelectorAll('.abv-view-tabs [data-view]')]
+        };
+    }
+    return shellLists;
+}
 const isOpen = () => Boolean(document.getElementById(APP_ID)?.classList.contains('open'));
 const emptyHtml = text => `<div class="abv-empty">${escapeHtml(text)}</div>`;
 
@@ -361,8 +383,9 @@ function setViewMode(mode) {
 function updateViewControls() {
     const app = document.getElementById(APP_ID);
     if (!app) return;
-    app.querySelectorAll('[data-panel]').forEach(panel => { panel.hidden = panel.dataset.panel !== state.viewMode; });
-    app.querySelectorAll('[data-view]').forEach(button => {
+    const { panels, tabs } = viewerLists(app);
+    panels.forEach(panel => { panel.hidden = panel.dataset.panel !== state.viewMode; });
+    tabs.forEach(button => {
         const active = button.dataset.view === state.viewMode;
         button.classList.toggle('active', active);
         button.setAttribute('aria-selected', String(active));
