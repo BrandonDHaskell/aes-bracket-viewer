@@ -1,3 +1,6 @@
+[![Install AES Bracket Viewer](https://img.shields.io/badge/Install-AES%20Bracket%20Viewer-342b55?style=for-the-badge)](https://github.com/BrandonDHaskell/aes-bracket-viewer/releases/latest/download/aes-bracket-viewer.user.js)
+[![Latest release](https://img.shields.io/github/v/release/BrandonDHaskell/aes-bracket-viewer)](https://github.com/BrandonDHaskell/aes-bracket-viewer/releases/download/v3.0.0/aes-bracket-viewer.user.js)
+
 # AES Bracket Viewer
 
 **A free userscript that turns AES volleyball results into a coach's dashboard.**
@@ -86,7 +89,7 @@ Firefox and Safari skip this step.
 
 **One click:** open the install link below. Your userscript manager shows an install page; click **Install**.
 
-**[Install AES Bracket Viewer](https://github.com/BrandonDHaskell/aes-bracket-viewer/raw/main/aes-bracket-viewer.user.js)**
+**[Install AES Bracket Viewer](https://github.com/BrandonDHaskell/aes-bracket-viewer/releases/latest/download/aes-bracket-viewer.user.js)**
 
 **Manual install (if the link just shows code):**
 1. Open your userscript manager's dashboard and create a new script.
