@@ -434,6 +434,7 @@ function updateStatus() {
         parts.push(group, `${shown} of ${total} matches`);
         if (state.traceNodeKey) parts.push(`tracing ${state.traceNodeKey}`);
     }
+    if (state.pendingPoolSheets.size) parts.push(`loading ${state.pendingPoolSheets.size} earlier pools`);
     parts.push(state.lastUpdatedTimestamp ? `AES updated ${formatDateTime(state.lastUpdatedTimestamp)}` : `loaded ${formatDateTime(state.lastLoadedAt)}`);
     const prefix = state.loadError ? `Last refresh failed (${state.loadError}). ` : '';
     const failures = state.poolSheetFailures.length;

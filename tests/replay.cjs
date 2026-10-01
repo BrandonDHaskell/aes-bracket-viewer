@@ -22,7 +22,8 @@ module.exports = async function boot(extra = {}) {
   w.fetch = async u => { const p = decodeURIComponent(String(u)).replace(`/api/event/${key}`, ''); if (extra.onFetch) await extra.onFetch(p); return p in table ? { ok: true, status: 200, json: async () => JSON.parse(JSON.stringify(table[p])) } : { ok: false, status: 404, json: async () => null }; };
   const t0 = Date.now(); w.eval(script);
   const doc = w.document; doc.getElementById('aes-bracket-viewer-button').click();
-  for (let i = 0; i < 200 && !/AES updated|could not/.test(doc.querySelector('[data-role="status-text"]')?.textContent || ''); i++) await new Promise(r => setTimeout(r, 50));
+  const settled = () => { const t = doc.querySelector('[data-role="status-text"]')?.textContent || ''; return /AES updated|could not/.test(t) && !/earlier pools/.test(t); };
+  for (let i = 0; extra.wait !== false && i < 200 && !settled(); i++) await new Promise(r => setTimeout(r, 50));
   return { w, doc, errors, ms: Date.now() - t0 };
 };
 if (require.main === module) (async () => {

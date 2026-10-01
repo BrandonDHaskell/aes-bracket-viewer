@@ -59,9 +59,10 @@ const media = initial => w => {
     check('left label sits before the chip', updated.nextElementSibling === chip);
     check('label tooltip names the time zone', /America\/Los_Angeles/.test(updated.title), updated.title);
     check('chip reads Last checked: Ns ago', /^Last checked: \d+s ago$/.test(chip.textContent), chip.textContent);
-    const first = Number(chip.textContent.match(/(\d+)s/)[1]);
-    await sleep(2200);
-    check('chip ticks every second', Number(chip.textContent.match(/(\d+)s/)?.[1]) >= first + 2, chip.textContent);
+    // The age can restart when a background load confirms the data, so look for change, not a fixed count.
+    const seen = new Set([chip.textContent]);
+    for (let i = 0; i < 3; i += 1) { await sleep(1100); seen.add(chip.textContent); }
+    check('chip ticks every second', seen.size >= 3, [...seen].join(' | '));
     check('chip not in warning style when fresh', !chip.classList.contains('warn'));
     // With AES unreachable the scheduler's check fails, so the last check keeps ageing.
     const realFetch = t.w.fetch;

@@ -566,7 +566,7 @@ function changeDivision(divisionId, { teamId = null } = {}) {
         const canvas = getViewCanvas(mode);
         if (canvas) canvas.innerHTML = emptyHtml('Loading division');
     }
-    loadData({ full: true });
+    loadData({ full: true, force: true });
 }
 
 function changeTimeZone(value) {

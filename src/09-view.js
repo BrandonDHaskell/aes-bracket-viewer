@@ -409,6 +409,7 @@ function renderGroupPerformance(canvas) {
             <div class="abv-journey-head"><div><h2>${escapeHtml(team.name)}</h2><p>Standings and outlook, ${escapeHtml(team.clubName)}</p></div></div>
             ${outlookSectionHtml(team)}
             ${likelyOpponentsHtml(team)}
+            ${pendingNoteHtml()}
             <div class="abv-breadcrumb abv-section">${escapeHtml(state.divisionName)} / ${escapeHtml(pool.stageLabel)} / ${escapeHtml(pool.groupName)} / ${escapeHtml(pool.poolLabel)}</div>
             ${controls}
             <section><p class="abv-subtitle">Tournament progress</p><div class="abv-progress-track">${progress}</div></section>
@@ -482,6 +483,13 @@ function statsScopeOptions(team) {
     const weekends = weekendByDate();
     const keys = new Set(selectedTeamMatches(team).map(node => weekends.get(matchDate(node))?.key).filter(Boolean));
     return eventWeekends().filter(weekend => keys.has(weekend.key));
+}
+
+function pendingNoteHtml() {
+    const count = state.pendingPoolSheets.size;
+    return count
+        ? `<div class="abv-warning">Earlier weekends are still loading (${count} pools). Records and stats here will update in a moment.</div>`
+        : '';
 }
 
 function renderStats(canvas) {
@@ -590,6 +598,7 @@ function renderStats(canvas) {
                 </div>
             </div>
             ${summary}
+            ${pendingNoteHtml()}
             ${missingNote}
             <section class="abv-section"><h3>Patterns</h3>${played ? patterns : '<p class="abv-muted">Patterns appear after the first result.</p>'}</section>
             ${setsTotal ? `<section class="abv-section"><h3>Set margins</h3>${tableHtml(['Margin', 'Points', numCol('Won'), numCol('Lost'), numCol('Share of sets')], marginRows)}</section>` : ''}
@@ -757,6 +766,7 @@ function renderScouting(canvas) {
                 <div><h2>${escapeHtml(them.name)}</h2><p>${escapeHtml(them.clubName)}${us ? `, scouted for ${escapeHtml(us.name)}` : ''}</p></div>
                 <div class="abv-head-actions">${picker}</div>
             </div>
+            ${pendingNoteHtml()}
             ${why}
             ${liveStatusHtml(them)}
             ${comparison}

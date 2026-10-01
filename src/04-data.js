@@ -77,9 +77,13 @@ function restoreData(snapshot) {
 }
 
 // full: re-download sheets already in memory from this visit. useSaved: allow saved copies of
-// finished pools from earlier visits (the Refresh button turns this off).
-async function loadData({ full = true, useSaved = true } = {}) {
-    if (state.loading || !state.eventKey) return;
+// finished pools from earlier visits (the Refresh button turns this off). force: start even if
+// another load is running; the older load is abandoned (used when the division or event changes).
+let loadSequence = 0;
+async function loadData({ full = true, useSaved = true, force = false } = {}) {
+    if ((state.loading && !force) || !state.eventKey) return;
+    const token = ++loadSequence;
+    const superseded = () => token !== loadSequence;
     state.loading = true;
     setRefreshDisabled(true);
     const hadData = state.loaded;
@@ -140,9 +144,8 @@ async function loadData({ full = true, useSaved = true } = {}) {
                 toFetch.push(playId);
             }
         }
-        if (!hadData) setStatus(`Loading ${toFetch.length} pool sheets`);
         const downloaded = new Map();
-        await mapLimit(toFetch, DEFAULTS.poolSheetConcurrency, async playId => {
+        const download = ids => mapLimit(ids, DEFAULTS.poolSheetConcurrency, async playId => {
             try {
                 const sheet = await api(`/poolsheet/${playId}`);
                 poolSheets.set(playId, sheet);
@@ -154,40 +157,49 @@ async function loadData({ full = true, useSaved = true } = {}) {
             }
         });
 
-        // Keep copies of newly downloaded pools that are finished and from an earlier day.
-        saveSheets(state.eventKey, new Map([...downloaded].filter(([playId, sheet]) => settledEarlier(sheet, poolPlays.get(playId)))));
+        // First load: download the current (or next) weekend first and show it, then fill in
+        // earlier weekends in the background. Later loads already hold earlier weekends.
+        const focusStart = hadData ? null : focusWeekendStart(dates, today);
+        const later = focusStart ? toFetch.filter(playId => poolPlays.get(playId) < focusStart) : [];
+        const laterIds = new Set(later);
+        const first = toFetch.filter(playId => !laterIds.has(playId));
+        if (!hadData) setStatus(`Loading ${first.length} pool sheets`);
+        await download(first);
+        if (superseded()) return;
 
         const previousSchedule = hadData && sameDivision ? snapshotTeamSchedule() : null;
-        const snapshot = captureData();
-        try {
-            Object.assign(state, {
-                event,
-                divisionId,
-                divisionName,
-                detectedTimeZone: detectEventTimeZone(event),
-                playdays: playdays || [],
-                masterPlays: master?.Plays || [],
-                dailyPlays,
-                poolSheets,
-                poolSheetFailures,
-                poolSheetsReused: reused,
-                poolSheetsFromSaved: fromSaved,
-                lastUpdatedTimestamp: timestamp?.LastUpdatedTimestamp || state.lastUpdatedTimestamp,
-                lastLoadedAt: Date.now(),
-                lastSyncedAt: Date.now()
-            });
-            clearTimeCaches();
-            buildGraphModel();
-        } catch (error) {
-            restoreData(snapshot);
-            clearTimeCaches();
-            throw error;
-        }
-        state.loaded = true;
-        state.loadError = null;
+        const commit = pending => commitModel({
+            event,
+            divisionId,
+            divisionName,
+            detectedTimeZone: detectEventTimeZone(event),
+            playdays: playdays || [],
+            masterPlays: master?.Plays || [],
+            dailyPlays,
+            poolSheets: new Map(poolSheets),
+            poolSheetFailures: [...poolSheetFailures],
+            poolSheetsReused: reused,
+            poolSheetsFromSaved: fromSaved,
+            pendingPoolSheets: pending,
+            lastUpdatedTimestamp: timestamp?.LastUpdatedTimestamp || state.lastUpdatedTimestamp,
+            lastLoadedAt: Date.now(),
+            lastSyncedAt: Date.now()
+        });
+        commit(laterIds);
         afterModelBuilt(hadData);
+
+        if (later.length) {
+            await download(later);
+            if (superseded()) return;
+            commit(new Set());
+            afterModelBuilt(true);
+        }
+
+        // Keep copies of newly downloaded pools that are finished and from an earlier day.
+        saveSheets(state.eventKey, new Map([...downloaded].filter(([playId, sheet]) => settledEarlier(sheet, poolPlays.get(playId)))));
         if (previousSchedule) notifyScheduleChanges(previousSchedule);
     } catch (error) {
+        if (superseded()) return;
         console.error('[AES Bracket Viewer]', error);
         state.loadError = error.message || String(error);
         if (!state.loaded) {
@@ -198,10 +210,29 @@ async function loadData({ full = true, useSaved = true } = {}) {
             setStatus(`Refresh failed (${state.loadError}). Showing data loaded ${formatDateTime(state.lastLoadedAt)}.`, 'error');
         }
     } finally {
-        state.loading = false;
-        setRefreshDisabled(false);
-        renderStatusChip();
+        if (!superseded()) {
+            state.loading = false;
+            setRefreshDisabled(false);
+            renderStatusChip();
+        }
     }
+}
+
+// Replaces the live model with a new one built from `fields`, or leaves the old model untouched
+// if the build throws.
+function commitModel(fields) {
+    const snapshot = captureData();
+    try {
+        Object.assign(state, fields);
+        clearTimeCaches();
+        buildGraphModel();
+    } catch (error) {
+        restoreData(snapshot);
+        clearTimeCaches();
+        throw error;
+    }
+    state.loaded = true;
+    state.loadError = null;
 }
 
 function afterModelBuilt(hadData) {
@@ -272,7 +303,7 @@ function schedulerTick() {
     }
     if (isOpen() && key !== state.eventKey && !state.loading) {
         ensureContext();
-        loadData({ full: true });
+        loadData({ full: true, force: true });
         return;
     }
     if (isOpen() && now - state.lastCountdownAt >= 30000) {

@@ -57,6 +57,7 @@
             poolSheetFailures: [],
             poolSheetsReused: 0,
             poolSheetsFromSaved: 0,
+            pendingPoolSheets: new Set(),
             lastUpdatedTimestamp: null,
             lastLoadedAt: null,
             lastSyncedAt: null,           // last time AES confirmed the data is current (load or unchanged check)

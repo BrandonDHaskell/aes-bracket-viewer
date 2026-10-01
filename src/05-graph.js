@@ -130,6 +130,7 @@ function buildGraphModel() {
     for (const [poolKey, keys] of poolMatchKeys) {
         if (keys.length) continue;
         const standings = state.nodes.get(poolKey);
+        if (state.pendingPoolSheets.has(standings.poolPlayId)) continue;
         const expressions = new Set();
         collectDependencyStrings(standings.play?.Teams || [], expressions, 0);
         collectDependencyStrings(standings.poolSheet?.Pool?.Teams || [], expressions, 0);
