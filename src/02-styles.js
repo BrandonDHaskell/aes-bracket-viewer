@@ -96,7 +96,7 @@ ${A} .abv-node.focus-possible, ${A} .abv-standings.focus-possible, ${A} .abv-ent
 ${A} .abv-node.group-focus { box-shadow: 0 0 0 2px rgba(50,72,108,.13); }
 ${A} .abv-entry.group-focus, ${A} .abv-standings.group-focus { background: #eef2f7; border-color: #8797ad; }
 ${A} .abv-node.context-node, ${A} .abv-entry.context-node, ${A} .abv-standings.context-node { opacity: .58; }
-${A} .abv-node.trace-dim, ${A} .abv-entry.trace-dim, ${A} .abv-standings.trace-dim { opacity: .16; filter: grayscale(.55); }
+${A} .abv-canvas.tracing :is(.abv-node, .abv-entry, .abv-standings):not(.trace-upstream, .trace-downstream, .trace-both) { opacity: .16; filter: grayscale(.55); }
 ${A} .abv-node.trace-upstream, ${A} .abv-entry.trace-upstream, ${A} .abv-standings.trace-upstream { opacity: 1; border-color: #39707c; box-shadow: 0 0 0 2px rgba(57,112,124,.16); }
 ${A} .abv-entry.trace-upstream, ${A} .abv-standings.trace-upstream { background: #eaf3f4; }
 ${A} .abv-node.trace-downstream, ${A} .abv-entry.trace-downstream, ${A} .abv-standings.trace-downstream { opacity: 1; border-color: #6b4cab; box-shadow: 0 0 0 2px rgba(107,76,171,.16); }
@@ -129,7 +129,7 @@ ${A} .abv-edge.focus-current { stroke: #3f7567; stroke-width: 2.5; stroke-dashar
 ${A} .abv-edge.focus-possible { stroke: #806ed1; stroke-width: 2; stroke-dasharray: 7 5; opacity: .82; }
 ${A} .abv-edge.group-focus { stroke: #77869c; stroke-width: 1.8; opacity: .82; }
 ${A} .abv-edge.context-edge { opacity: .22; }
-${A} .abv-edge.trace-dim { opacity: .08; }
+${A} .abv-canvas.tracing .abv-edge:not(.trace-upstream, .trace-downstream, .trace-both) { opacity: .08; }
 ${A} .abv-edge.trace-upstream { stroke: #39707c; stroke-width: 2.4; opacity: .96; }
 ${A} .abv-edge.trace-downstream { stroke: #6b4cab; stroke-width: 2.4; opacity: .96; }
 ${A} .abv-edge.trace-both { stroke: #4d5968; stroke-width: 2.4; opacity: .96; }
@@ -137,7 +137,7 @@ ${A} .abv-edge-label { font: 10px system-ui, sans-serif; fill: #4d5360; paint-or
 ${A} .abv-canvas.compact .abv-edge-label { font-size: 8px; }
 ${A} .abv-edge-label.focus-current { fill: #315f54; }
 ${A} .abv-edge-label.focus-possible { fill: #654daf; }
-${A} .abv-edge-label.trace-dim { opacity: .08; }
+${A} .abv-canvas.tracing .abv-edge-label:not(.trace-upstream, .trace-downstream, .trace-both) { opacity: .08; }
 ${A} .abv-edge-label.trace-upstream { fill: #2f616b; }
 ${A} .abv-edge-label.trace-downstream { fill: #5b3f95; }
 

@@ -425,7 +425,17 @@ function computeTrace(nodeKey) {
     });
 }
 
+// The nodes and edges currently traced, plus the selected node: the only elements whose
+// classes can change when the trace changes.
+function traceMembers() {
+    return {
+        nodes: new Set([...state.traceUpstreamNodes, ...state.traceDownstreamNodes, state.selectedNodeKey].filter(Boolean)),
+        edges: new Set([...state.traceUpstreamEdges, ...state.traceDownstreamEdges])
+    };
+}
+
 function clearTrace(render = true) {
+    const before = traceMembers();
     Object.assign(state, {
         traceNodeKey: null,
         traceUpstreamNodes: new Set(),
@@ -433,11 +443,12 @@ function clearTrace(render = true) {
         traceUpstreamEdges: new Set(),
         traceDownstreamEdges: new Set()
     });
-    if (render) applyTraceChange();
+    if (render) applyTraceChange(before);
 }
 
 function selectNode(nodeKey) {
     if (!state.nodes.has(nodeKey)) return;
+    const before = traceMembers();
     state.selectedNodeKey = nodeKey;
     if (state.viewMode !== 'tournament') {
         renderGraph();
@@ -445,16 +456,23 @@ function selectNode(nodeKey) {
     }
     if (state.traceNodeKey === nodeKey) clearTrace(false);
     else computeTrace(nodeKey);
-    applyTraceChange();
+    applyTraceChange(before);
 }
 
 // Tracing usually only changes highlighting. When the visible node set is unchanged,
 // update classes in place instead of rebuilding and re-laying out the whole canvas.
-function applyTraceChange() {
+// `before` is traceMembers() from before the change; with it, only elements traced before or
+// after are restyled. Without it, every element is.
+function applyTraceChange(before = null) {
     if (state.viewMode === 'tournament' && state.renderedSignature) {
-        const { visibleKeys } = getBaseVisibleKeys();
-        if (visibleSignature(visibleKeys) === state.renderedSignature) {
-            refreshTournamentClasses();
+        const visible = getBaseVisibleKeys();
+        if (visibleSignature(visible.visibleKeys) === state.renderedSignature) {
+            let only = null;
+            if (before) {
+                const after = traceMembers();
+                only = { nodes: new Set([...before.nodes, ...after.nodes]), edges: new Set([...before.edges, ...after.edges]) };
+            }
+            refreshTournamentClasses(only, visible);
             if (state.selectedNodeKey) renderDetails(state.selectedNodeKey);
             updateViewControls();
             updateStatus();
@@ -476,7 +494,7 @@ function nodeTraceClass(nodeKey) {
     if (up && down) return 'trace-both';
     if (up) return 'trace-upstream';
     if (down) return 'trace-downstream';
-    return 'trace-dim';
+    return '';   // untraced elements are dimmed by the canvas-level .tracing class
 }
 
 function edgeTraceClass(edgeKey) {
@@ -486,6 +504,6 @@ function edgeTraceClass(edgeKey) {
     if (up && down) return 'trace-both';
     if (up) return 'trace-upstream';
     if (down) return 'trace-downstream';
-    return 'trace-dim';
+    return '';   // untraced elements are dimmed by the canvas-level .tracing class
 }
 

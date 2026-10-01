@@ -27,8 +27,10 @@ async function boot(url, mobile = false) {
     const el = d.querySelector('[data-node-key="R2P1M1"]');
     el.dispatchEvent(new w.MouseEvent('click', { bubbles: true })); await sleep(30);
     check('trace reuses DOM node (no re-layout)', d.querySelector('[data-node-key="R2P1M1"]') === el && /trace-/.test(el.className));
-    const dimmed = d.querySelectorAll('.abv-node.trace-dim').length, edgesDim = d.querySelectorAll('path.abv-edge.trace-dim').length;
-    check('unrelated nodes and edges dimmed in place', dimmed > 0 && edgesDim > 0, `${dimmed} nodes, ${edgesDim} edges`);
+    const canvasEl = d.querySelector('[data-canvas="tournament"]');
+    const traced = d.querySelectorAll('.abv-node:is(.trace-upstream, .trace-downstream, .trace-both)').length;
+    const untraced = d.querySelectorAll('.abv-node:not(.trace-upstream, .trace-downstream, .trace-both)').length;
+    check('canvas dims everything not traced', canvasEl.classList.contains('tracing') && traced > 0 && untraced > 0, `${traced} traced, ${untraced} dimmed`);
     const detail = d.querySelector('[data-detail="tournament"]').textContent;
     check('match detail copy has no dev notes', /Arrives from/.test(detail) && !/fixes|duplicate-result|three-team/i.test(detail));
     const standings = d.querySelector('[data-node-key="R1P1"]'); standings.dispatchEvent(new w.MouseEvent('click', { bubbles: true })); await sleep(30);
