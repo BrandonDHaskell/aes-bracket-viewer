@@ -464,6 +464,15 @@ function selectNode(nodeKey) {
 // `before` is traceMembers() from before the change; with it, only elements traced before or
 // after are restyled. Without it, every element is.
 function applyTraceChange(before = null) {
+    const traceStarted = performance.now();
+    try {
+        traceChangeNow(before);
+    } finally {
+        state.perf.lastTraceMs = performance.now() - traceStarted;
+    }
+}
+
+function traceChangeNow(before) {
     if (state.viewMode === 'tournament' && state.renderedSignature) {
         const visible = getBaseVisibleKeys();
         if (visibleSignature(visible.visibleKeys) === state.renderedSignature) {

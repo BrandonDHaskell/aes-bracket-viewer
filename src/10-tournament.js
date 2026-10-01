@@ -18,11 +18,16 @@ function renderGraph() {
     if (!state.loaded) return;
     const canvas = getViewCanvas(state.viewMode);
     if (!canvas) return;
+    const renderStarted = performance.now();
     if (state.viewMode === 'journey') renderMatchDay(canvas);
     else if (state.viewMode === 'performance') renderGroupPerformance(canvas);
     else if (state.viewMode === 'stats') renderStats(canvas);
     else if (state.viewMode === 'scouting') renderScouting(canvas);
     else renderTournament(canvas);
+    state.perf.renders[state.viewMode] = performance.now() - renderStarted;
+    if (state.viewMode === 'tournament') {
+        state.perf.tournamentElements = tournamentElements.nodes.size + [...tournamentElements.edges.values()].reduce((sum, list) => sum + list.length, 0);
+    }
     updateStatus();
     renderDiagnostics();
     renderMyTeamsBar();

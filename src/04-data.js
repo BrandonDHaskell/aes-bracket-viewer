@@ -16,6 +16,7 @@ function ensureContext() {
 }
 
 async function api(path = '') {
+    state.perf.requests += 1;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), DEFAULTS.fetchTimeoutMs);
     try {
@@ -84,6 +85,8 @@ async function loadData({ full = true, useSaved = true, force = false } = {}) {
     if ((state.loading && !force) || !state.eventKey) return;
     const token = ++loadSequence;
     const superseded = () => token !== loadSequence;
+    const startedAt = performance.now();
+    const requestsAtStart = state.perf.requests;
     state.loading = true;
     setRefreshDisabled(true);
     const hadData = state.loaded;
@@ -187,6 +190,7 @@ async function loadData({ full = true, useSaved = true, force = false } = {}) {
         });
         commit(laterIds);
         afterModelBuilt(hadData);
+        const firstViewMs = performance.now() - startedAt;
 
         if (later.length) {
             await download(later);
@@ -197,6 +201,15 @@ async function loadData({ full = true, useSaved = true, force = false } = {}) {
 
         // Keep copies of newly downloaded pools that are finished and from an earlier day.
         saveSheets(state.eventKey, new Map([...downloaded].filter(([playId, sheet]) => settledEarlier(sheet, poolPlays.get(playId)))));
+        state.perf.load = {
+            firstViewMs,
+            totalMs: performance.now() - startedAt,
+            requests: state.perf.requests - requestsAtStart,
+            downloaded: downloaded.size,
+            fromSaved,
+            background: later.length
+        };
+        renderDiagnostics();
         if (previousSchedule) notifyScheduleChanges(previousSchedule);
     } catch (error) {
         if (superseded()) return;
@@ -225,7 +238,9 @@ function commitModel(fields) {
     try {
         Object.assign(state, fields);
         clearTimeCaches();
+        const buildStarted = performance.now();
         buildGraphModel();
+        state.perf.buildMs = performance.now() - buildStarted;
     } catch (error) {
         restoreData(snapshot);
         clearTimeCaches();

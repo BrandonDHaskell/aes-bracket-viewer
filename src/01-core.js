@@ -141,6 +141,7 @@
         likelyOpponents: { ids: new Set(), names: new Set() },
         lateCourtNodes: new Set(),
         notice: '',
+        perf: { requests: 0, load: null, buildMs: null, renders: {}, tournamentElements: 0, lastTraceMs: null },
         schedulerTimer: null,
         lastCheckAt: 0,
         lastCountdownAt: 0,

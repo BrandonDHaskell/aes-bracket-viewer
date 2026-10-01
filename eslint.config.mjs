@@ -5,7 +5,7 @@ export default [{
     languageOptions: {
         ecmaVersion: 2022,
         sourceType: 'script',
-        globals: { ...globals.browser, GM_notification: 'readonly' }
+        globals: { ...globals.browser, GM_notification: 'readonly', GM_info: 'readonly', GM: 'readonly' }
     },
     rules: {
         'no-undef': 'error',

@@ -257,6 +257,7 @@ function handleAction(action, element = null) {
             if (state.showSettings) populateSettings();
             updateViewControls();
             break;
+        case 'copy-diagnostics': copyDiagnostics(); break;
         case 'toggle-diagnostics':
             state.showDiagnostics = !state.showDiagnostics;
             renderDiagnostics();
@@ -616,6 +617,38 @@ function copyViewLink() {
     );
 }
 
+// Timings measured on this device, so slow phones can be spotted from real numbers.
+function performanceRows() {
+    const perf = state.perf;
+    const ms = value => (value == null ? '-' : `${Math.round(value)} ms`);
+    const seconds = value => `${(value / 1000).toFixed(1)} s`;
+    const views = { tournament: 'Tournament', journey: 'Match Day', performance: 'Standings & Outlook', stats: 'Stats', scouting: 'Scouting' };
+    const load = perf.load;
+    const version = typeof GM_info !== 'undefined' ? GM_info.script?.version : (typeof GM !== 'undefined' ? GM.info?.script?.version : null);
+    return [
+        ['Script version', version || 'unknown'],
+        ['Last load', load
+            ? `${seconds(load.totalMs)} total, first view after ${seconds(load.firstViewMs)}, ${load.requests} requests (${load.downloaded} pool sheets downloaded, ${load.fromSaved} from saved copies${load.background ? `, ${load.background} in the background` : ''})`
+            : '-'],
+        ['Model build', ms(perf.buildMs)],
+        ['Render times', Object.entries(perf.renders)
+            .map(([view, value]) => `${views[view] || view} ${ms(value)}${view === 'tournament' && perf.tournamentElements ? ` (${perf.tournamentElements} elements)` : ''}`)
+            .join(', ') || '-'],
+        ['Last trace click', ms(perf.lastTraceMs)],
+        ['Device', `${navigator.hardwareConcurrency || '?'} CPU threads, ${window.innerWidth}x${window.innerHeight} window, ${navigator.userAgent}`]
+    ];
+}
+
+function copyDiagnostics() {
+    const text = $('[data-role="diag-body"]')?.dataset.copyText || '';
+    if (!text) return;
+    if (!navigator.clipboard?.writeText) {
+        setStatus('Copy is not available in this browser. Select the Details text instead.');
+        return;
+    }
+    navigator.clipboard.writeText(text).then(() => setStatus('Details copied.'), () => setStatus('Copy failed. Select the Details text instead.'));
+}
+
 function renderDiagnostics() {
     const panel = $('[data-role="diag-body"]');
     if (!panel || !state.showDiagnostics) return;
@@ -642,10 +675,14 @@ function renderDiagnostics() {
         ['Last loaded', formatDateTime(state.lastLoadedAt)],
         ['Update checks', `every ${DEFAULTS.freshnessCheckMs / 1000}s while open${state.prefs.notify ? `, every ${DEFAULTS.backgroundCheckMs / 60000} min in the background` : ''}`]
     ];
+    const perfRows = performanceRows();
     const list = (title, items, describe) => items.length
         ? `<h4>${escapeHtml(title)}</h4><ul>${items.slice(0, 25).map(item => `<li>${escapeHtml(describe(item))}</li>`).join('')}${items.length > 25 ? `<li>and ${items.length - 25} more</li>` : ''}</ul>`
         : '';
-    panel.innerHTML = `<dl>${rows.map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd>`).join('')}</dl>`
+    const table = entries => `<dl>${entries.map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd>`).join('')}</dl>`;
+    panel.dataset.copyText = [...rows, ...perfRows].map(([label, value]) => `${label}: ${value}`).join('\n');
+    panel.innerHTML = table(rows)
+        + `<h4>Performance on this device</h4>${table(perfRows)}<p><button type="button" data-action="copy-diagnostics">Copy details</button></p>`
         + list('Unresolved references', state.unresolved, u => `${u.reason}: "${u.sourceText || ''}" into ${u.to || 'unknown'}`)
         + list('Duplicate WIN/LOSS branches', state.outcomeConflicts, c => `${c.from} ${c.condition} goes to ${c.destinations.join(', ')}`)
         + list('Pool sheet failures', state.poolSheetFailures, f => `Play ${f.playId}: ${f.error}`);
