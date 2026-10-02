@@ -54,9 +54,24 @@ const media = initial => w => {
     check('wide: bottom navigation hidden', t.q('[data-role="bottom-nav"]').hidden);
     check('wide: tab labels are the full names', t.q('[data-view="performance"]').textContent === 'Standings & Outlook');
     const chip = t.q('[data-role="status-chip"]');
-    check('status chip reads Checked ...', /^Checked/.test(chip.textContent), chip.textContent);
-    check('chip tooltip separates the check time from the AES change time', /Checked with AES .* AES data last changed /.test(chip.title), chip.title);
-    check('chip shows when the viewer checked, not when AES changed', /^Checked just now/.test(chip.textContent), chip.textContent);
+    const updated = t.q('[data-role="updated-label"]');
+    check('left label shows the AES update time', /^Last updated: \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(updated.textContent), updated.textContent);
+    check('left label sits before the chip', updated.nextElementSibling === chip);
+    check('label tooltip names the time zone', /America\/Los_Angeles/.test(updated.title), updated.title);
+    check('chip reads Last checked: Ns ago', /^Last checked: \d+s ago$/.test(chip.textContent), chip.textContent);
+    const first = Number(chip.textContent.match(/(\d+)s/)[1]);
+    await sleep(2200);
+    check('chip ticks every second', Number(chip.textContent.match(/(\d+)s/)?.[1]) >= first + 2, chip.textContent);
+    check('chip not in warning style when fresh', !chip.classList.contains('warn'));
+    // With AES unreachable the scheduler's check fails, so the last check keeps ageing.
+    const realFetch = t.w.fetch;
+    t.w.fetch = async () => { throw new Error('offline'); };
+    const RealDate = t.w.Date;
+    t.w.Date = class extends RealDate { static now() { return super.now() + 4 * 60000; } };
+    await sleep(1100);
+    check('chip warns and shows minutes when checks are stale', chip.classList.contains('warn') && /^Last checked: 4m ago$/.test(chip.textContent), chip.textContent);
+    t.w.Date = RealDate;
+    t.w.fetch = realFetch;
 
     // Group select lives only in the Tournament toolbar.
     const groups = t.qa('[data-action="group"]');
@@ -130,7 +145,7 @@ const media = initial => w => {
     check('compact: bottom navigation switches views', t.q('[data-panel="stats"]') && !t.q('[data-panel="stats"]').hidden && nav.querySelector('[data-view="stats"]').getAttribute('aria-selected') === 'true' && nav.querySelector('[data-view="journey"]').getAttribute('aria-selected') === 'false');
     const mine = t.q('[data-role="my-teams"]');
     check('compact: My teams is one row of chips', mine.querySelectorAll('.abv-chip').length >= 2 && mine.parentElement === t.app && !mine.hidden);
-    check('compact: status chip still shown', /^Checked/.test(t.q('[data-role="status-chip"]').textContent));
+    check('compact: short label and chip', /^Updated \d{2}-\d{2} \d{2}:\d{2}$/.test(t.q('[data-role="updated-label"]').textContent) && /^Checked \d+s ago$/.test(t.q('[data-role="status-chip"]').textContent), `${t.q('[data-role="updated-label"]').textContent} / ${t.q('[data-role="status-chip"]').textContent}`);
     const css = t.doc.getElementById('aes-bracket-viewer-styles').textContent;
     check('compact: detail panels are hidden by the compact class', /\.abv-compact \.abv-detail[^{]*\{ display: none/.test(css) && t.q('[data-detail="tournament"]').closest('.abv-compact'));
     t.w.__setNarrow(false);

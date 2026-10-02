@@ -44,11 +44,12 @@ ${A} .abv-bottomnav { flex: none; background: #fff; border-top: 1px solid #d7dae
 ${A}.abv-compact .abv-bottomnav .abv-view-tabs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; overflow: visible; }
 ${A}.abv-compact .abv-bottomnav .abv-view-tabs button { min-height: 52px; padding: 6px 2px; border: 0; border-radius: 0; background: #fff; font-size: 12px; }
 ${A}.abv-compact .abv-bottomnav .abv-view-tabs button.active { background: #342b55; color: #fff; }
-${A}.abv-compact .abv-subbar { padding: 0 8px; justify-content: flex-end; min-height: 30px; }
-${A}.abv-compact button.abv-status-chip { max-width: 100%; }
+${A}.abv-compact .abv-subbar { padding: 0 8px; justify-content: space-between; min-height: 30px; }
+${A}.abv-compact button.abv-status-chip { max-width: none; flex: none; }
 
 ${A} .abv-subbar { display: flex; align-items: center; gap: 10px; padding: 0 14px; background: #fafbfc; border-bottom: 1px solid #d7dae0; min-width: 0; }
 ${A} .abv-subbar .abv-view-tabs { flex: 1 1 auto; min-width: 0; padding: 6px 0; border: 0; background: transparent; }
+${A} .abv-updated { flex: 0 1 auto; min-width: 0; margin-left: auto; color: #505662; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 ${A} button.abv-status-chip { flex: 0 1 auto; min-width: 0; max-width: 45%; min-height: 28px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; color: #505662; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 ${A} button.abv-status-chip.warn { border-color: #d6b36a; background: #fff7e8; color: #76531b; }
 ${A} .abv-banner { display: flex; align-items: center; gap: 10px; padding: 6px 14px; background: #fff0f0; border-bottom: 1px solid #e3b9b9; color: #8b1e1e; font-size: 12px; }

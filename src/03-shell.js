@@ -46,6 +46,7 @@ function setCompact(compact) {
     const app = document.getElementById(APP_ID);
     if (!app) return;
     app.classList.toggle('abv-compact', compact);
+    renderStatusChip();
     // One set of view buttons: bottom navigation on phones, beside the status chip otherwise.
     const tabs = app.querySelector('[data-role="view-tabs"]');
     const bottom = app.querySelector('[data-role="bottom-nav"]');
@@ -134,6 +135,7 @@ function createViewer() {
                     <button type="button" role="tab" data-short="Stats" data-view="stats">Stats</button>
                     <button type="button" role="tab" data-short="Scout" data-view="scouting">Scouting</button>
                 </div>
+                <span class="abv-updated" data-role="updated-label"></span>
                 <button type="button" class="abv-status-chip" data-action="toggle-diagnostics" data-role="status-chip" aria-expanded="false">Loading...</button>
             </div>
             <div class="abv-diag" data-role="diagnostics" hidden>
@@ -401,7 +403,7 @@ async function openViewer() {
     }
     updateViewControls();
     clearInterval(state.chipTimer);
-    state.chipTimer = setInterval(renderStatusChip, 30000);
+    state.chipTimer = setInterval(renderStatusChip, 1000);
     state.lastCheckAt = Date.now();
     if (!state.loaded && !state.loading) {
         await loadData({ full: true });
@@ -461,32 +463,55 @@ function showBanner(text) {
     banner.hidden = !text || state.dismissedBanner === text;
 }
 
+const STALE_CHECK_MS = 180000;
+
+// Seconds under a minute, then minutes, hours, days.
 function relativeAge(epoch) {
-    const minutes = Math.floor((Date.now() - epoch) / 60000);
-    if (!Number.isFinite(minutes)) return '';
-    if (minutes < 1) return 'just now';
-    if (minutes < 60) return `${minutes}m ago`;
-    if (minutes < 48 * 60) return `${Math.floor(minutes / 60)}h ago`;
-    return `${Math.floor(minutes / 1440)}d ago`;
+    const seconds = Math.floor((Date.now() - epoch) / 1000);
+    if (!Number.isFinite(seconds)) return '';
+    if (seconds < 60) return `${Math.max(0, seconds)}s ago`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    if (seconds < 48 * 3600) return `${Math.floor(seconds / 3600)}h ago`;
+    return `${Math.floor(seconds / 86400)}d ago`;
+}
+
+// YYYY-MM-DD HH:mm:ss in the effective time zone; short is MM-DD HH:mm for phones.
+function formatStamp(value, short = false) {
+    const epoch = parseEventTime(value);
+    if (!Number.isFinite(epoch)) return '';
+    const parts = Object.fromEntries(cachedFormatter('parts', effectiveTimeZone()).formatToParts(new Date(epoch)).map(part => [part.type, part.value]));
+    return short
+        ? `${parts.month}-${parts.day} ${parts.hour}:${parts.minute}`
+        : `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second}`;
 }
 
 function renderStatusChip() {
     const chip = $('[data-role="status-chip"]');
+    const label = $('[data-role="updated-label"]');
     if (!chip) return;
+    const ready = state.loaded && !state.loading;
     const notes = state.loaded ? state.unresolved.length + state.outcomeConflicts.length + state.poolSheetFailures.length : 0;
+    const changedAt = state.lastUpdatedTimestamp || state.lastLoadedAt;
+    const syncedAt = state.lastSyncedAt || state.lastLoadedAt;
+    if (label) {
+        const full = state.loaded ? formatStamp(changedAt) : '';
+        label.hidden = !full;
+        label.textContent = full ? (state.compact ? `Updated ${formatStamp(changedAt, true)}` : `Last updated: ${full}`) : '';
+        label.title = full ? `${state.lastUpdatedTimestamp ? 'AES data last changed' : 'AES did not report a change time. Data loaded'} ${full} (${effectiveTimeZone()}).` : '';
+    }
     let text = 'Loading...';
     if (state.statusKind === 'notice' && state.statusNotice) text = state.statusNotice;
     else if (!state.loaded && state.loadError && !state.loading) text = 'Not loaded';
-    else if (state.loaded && !state.loading) {
-        const age = relativeAge(state.lastSyncedAt || state.lastLoadedAt);
-        text = age ? `Checked ${age}` : 'Checked';
+    else if (ready) {
+        const age = relativeAge(syncedAt);
+        text = `${state.compact ? 'Checked' : 'Last checked:'} ${age || 'just now'}`;
     }
     chip.textContent = notes ? `${text} (${notes})` : text;
-    const changed = state.lastUpdatedTimestamp ? formatDateTime(state.lastUpdatedTimestamp) : '';
-    chip.title = state.loaded && !state.loading
-        ? `Checked with AES ${relativeAge(state.lastSyncedAt || state.lastLoadedAt) || 'just now'}.${changed ? ` AES data last changed ${changed}.` : ''} Select for details.`
+    chip.title = ready
+        ? `The viewer last checked AES ${relativeAge(syncedAt) || 'just now'}. It checks every ${DEFAULTS.freshnessCheckMs / 1000}s while open. Select for details.`
         : ($('[data-role="status-text"]')?.textContent || text);
-    chip.classList.toggle('warn', notes > 0);
+    const stale = ready && Date.now() - syncedAt > STALE_CHECK_MS;
+    chip.classList.toggle('warn', notes > 0 || stale);
 }
 
 function setRefreshDisabled(disabled) {
