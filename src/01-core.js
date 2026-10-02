@@ -124,6 +124,8 @@
         showFuturePath: true,
         tournamentDensity: 'compact',
         showSettings: false,
+        toolsOpen: false,
+        compact: false,
         showDiagnostics: false,
         hashState: null,
         hashApplied: false,

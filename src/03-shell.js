@@ -26,9 +26,24 @@ function updateLauncher() {
     const button = document.getElementById(BUTTON_ID);
     if (button) button.textContent = state.divisionName ? `${shortDivisionLabel(state.divisionName)} Bracket` : 'Bracket Viewer';
     const title = $('[data-role="title"]');
-    const subtitle = $('[data-role="subtitle"]');
+    const division = $('[data-role="title-division"]');
     if (title) title.textContent = state.event?.Name || state.event?.EventName || 'AES Bracket Viewer';
-    if (subtitle) subtitle.textContent = state.divisionName ? `${state.divisionName}: club, team, and group progression` : 'Loading';
+    if (division) {
+        division.hidden = !state.divisionName;
+        division.textContent = state.divisionName ? `\u00b7 ${state.divisionName}` : '';
+    }
+}
+
+const ICON_PATHS = {
+    refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/>',
+    settings: '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
+    close: '<path d="M6 6l12 12M18 6L6 18"/>'
+};
+const iconButton = (action, label, icon, extra = '') => `<button type="button" class="abv-icon-btn" data-action="${action}" aria-label="${label}" title="${label}" ${extra}><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${ICON_PATHS[icon]}</svg></button>`;
+
+function setCompact(compact) {
+    state.compact = compact;
+    document.getElementById(APP_ID)?.classList.toggle('abv-compact', compact);
 }
 
 function createViewer() {
@@ -37,24 +52,46 @@ function createViewer() {
     app.id = APP_ID;
     app.setAttribute('role', 'dialog');
     app.setAttribute('aria-label', 'AES bracket viewer');
+    const graphTools = `
+                    <div class="abv-graph-tools" data-role="graph-tools">
+                        <button type="button" class="abv-tools-toggle" data-action="toggle-tools" aria-expanded="false">Options</button>
+                        <div class="abv-tools-body">
+                            <label class="abv-filter-control">Group <select data-action="group" aria-label="Group"><option value="__all__">All groups</option></select></label>
+                            <label class="abv-check"><input type="checkbox" data-action="future-path" checked> Show future path</label>
+                            <label class="abv-check"><input type="checkbox" data-action="labels" checked> Edge labels</label>
+                            <label class="abv-filter-control">Node size
+                                <select data-action="density"><option value="compact">Compact</option><option value="standard">Standard</option></select>
+                            </label>
+                            <button type="button" data-action="clear-trace" hidden>Clear trace</button>
+                        </div>
+                    </div>`;
     const panel = (mode, heading, text) => `
             <section class="abv-view-panel" data-panel="${mode}" ${mode === 'tournament' ? '' : 'hidden'}>
-                <div class="${mode === 'tournament' ? 'abv-graph-wrap' : 'abv-list-wrap'}">
-                    <div class="${mode === 'tournament' ? 'abv-canvas' : 'abv-list-canvas'}" data-canvas="${mode}"></div>
+                <div class="${mode === 'tournament' ? 'abv-graph-frame' : 'abv-list-frame'}">
+                    <div class="${mode === 'tournament' ? 'abv-graph-wrap' : 'abv-list-wrap'}">
+                        <div class="${mode === 'tournament' ? 'abv-canvas' : 'abv-list-canvas'}" data-canvas="${mode}"></div>
+                    </div>${mode === 'tournament' ? graphTools : ''}
                 </div>
                 <aside class="abv-detail" data-detail="${mode}"><h3>${heading}</h3><p class="abv-muted">${text}</p></aside>
             </section>`;
     app.innerHTML = `
             <div class="abv-header">
-                <div class="abv-title"><strong data-role="title">AES Bracket Viewer</strong><small data-role="subtitle">Loading</small></div>
-                <label class="abv-filter-control">Club <select data-action="club"><option value="__all__">All clubs</option></select></label>
-                <label class="abv-filter-control">Team <select data-action="team"><option value="__all__">All teams</option></select></label>
-                <label class="abv-filter-control">Group <select data-action="group"><option value="__all__">All groups</option></select></label>
-                <button type="button" data-action="reset-filters">Reset filters</button>
-                <button type="button" data-action="clear-trace" disabled>Clear trace</button>
-                <button type="button" data-action="refresh">Refresh</button>
-                <button type="button" data-action="toggle-settings" aria-expanded="false">Settings</button>
-                <button type="button" data-action="close" aria-label="Close viewer (Esc)">Close</button>
+                <div class="abv-header-top">
+                    <div class="abv-title">
+                        <strong data-role="title">AES Bracket Viewer</strong>
+                        <button type="button" class="abv-title-division" data-action="open-division" data-role="title-division" aria-label="Change division" hidden></button>
+                    </div>
+                    <div class="abv-header-actions">
+                        ${iconButton('refresh', 'Refresh', 'refresh')}
+                        ${iconButton('toggle-settings', 'Settings', 'settings', 'aria-expanded="false"')}
+                        ${iconButton('close', 'Close viewer (Esc)', 'close')}
+                    </div>
+                </div>
+                <div class="abv-header-filters">
+                    <label class="abv-filter-control"><span class="abv-label-text">Club</span> <select data-action="club" aria-label="Club"><option value="__all__">All clubs</option></select></label>
+                    <label class="abv-filter-control"><span class="abv-label-text">Team</span> <select data-action="team" aria-label="Team"><option value="__all__">All teams</option></select></label>
+                    <button type="button" class="abv-text-btn" data-action="reset-filters">Reset filters</button>
+                </div>
             </div>
             <div class="abv-bar abv-my-teams" data-role="my-teams" hidden></div>
             <div class="abv-bar" data-role="settings" hidden>
@@ -77,14 +114,6 @@ function createViewer() {
                 <button type="button" role="tab" data-view="stats">Stats</button>
                 <button type="button" role="tab" data-view="scouting">Scouting</button>
             </div>
-            <div class="abv-bar" data-role="tournament-tools">
-                <label class="abv-check"><input type="checkbox" data-action="future-path" checked> Show future path</label>
-                <label class="abv-check"><input type="checkbox" data-action="labels" checked> Edge labels</label>
-                <label class="abv-filter-control">Node size
-                    <select data-action="density"><option value="compact">Compact</option><option value="standard">Standard</option></select>
-                </label>
-                <span class="abv-muted">Select a node to trace every linked match before and after it. Select it again to clear.</span>
-            </div>
             <div class="abv-status">
                 <span class="abv-status-text" data-role="status-text">Open the viewer to load AES data.</span>
                 <button type="button" data-action="toggle-diagnostics" aria-expanded="false">Details</button>
@@ -101,6 +130,9 @@ function createViewer() {
     app.addEventListener('change', onAppChange);
     app.addEventListener('keydown', onAppKeydown);
     document.body.appendChild(app);
+    const query = window.matchMedia?.(MOBILE_QUERY);
+    setCompact(Boolean(query?.matches));
+    query?.addEventListener?.('change', event => setCompact(event.matches));
 }
 
 function onAppClick(event) {
@@ -147,6 +179,16 @@ function handleAction(action, element = null) {
     switch (action) {
         case 'close': closeViewer(); break;
         case 'clear-trace': clearTrace(); break;
+        case 'open-division':
+            state.showSettings = true;
+            populateSettings();
+            updateViewControls();
+            $('[data-action="division"]')?.focus();
+            break;
+        case 'toggle-tools':
+            state.toolsOpen = !state.toolsOpen;
+            updateViewControls();
+            break;
         case 'reset-filters': resetFilters(); break;
         case 'refresh': loadData({ full: true }); break;
         case 'toggle-settings':
@@ -286,11 +328,10 @@ function updateViewControls() {
         button.classList.toggle('active', active);
         button.setAttribute('aria-selected', String(active));
     });
-    const tournament = state.viewMode === 'tournament';
     const set = (selector, apply) => { const element = $(selector); if (element) apply(element); };
-    set('[data-action="group"]', el => { el.disabled = !tournament; });
-    set('[data-action="clear-trace"]', el => { el.disabled = !tournament || !state.traceNodeKey; });
-    set('[data-role="tournament-tools"]', el => { el.hidden = !tournament; });
+    set('[data-action="clear-trace"]', el => { el.hidden = !state.traceNodeKey; });
+    set('[data-role="graph-tools"]', el => { el.classList.toggle('tools-open', state.toolsOpen); });
+    set('[data-action="toggle-tools"]', el => { el.setAttribute('aria-expanded', String(state.toolsOpen)); });
     set('[data-action="future-path"]', el => { el.disabled = state.teamFilterId == null; el.checked = state.showFuturePath; });
     set('[data-action="labels"]', el => { el.checked = state.showEdgeLabels; });
     set('[data-action="density"]', el => { el.value = state.tournamentDensity; });

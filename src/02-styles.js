@@ -17,10 +17,18 @@ ${A}.open { display: flex; }
 ${A} [hidden] { display: none !important; }
 ${A} :focus-visible { outline: 2px solid #51427f; outline-offset: 2px; }
 
-${A} .abv-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 14px; background: #fff; border-bottom: 1px solid #d7dae0; }
-${A} .abv-title { margin-right: auto; min-width: 200px; }
-${A} .abv-title strong { display: block; font-size: 16px; }
-${A} .abv-title small { display: block; color: #616774; margin-top: 2px; }
+${A} .abv-header { display: flex; flex-direction: column; gap: 6px; padding: 8px 14px; background: #fff; border-bottom: 1px solid #d7dae0; }
+${A} .abv-header-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+${A} .abv-title { flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; gap: 6px; overflow: hidden; white-space: nowrap; }
+${A} .abv-title strong { font-size: 16px; overflow: hidden; text-overflow: ellipsis; }
+${A} button.abv-title-division { flex: none; min-height: 28px; padding: 2px 6px; border-color: transparent; background: transparent; color: #342b55; font-size: 14px; text-decoration: underline dotted; text-underline-offset: 3px; }
+${A} button.abv-title-division:hover { background: #eee9ff; }
+${A} .abv-header-actions { display: flex; gap: 4px; flex: none; }
+${A} button.abv-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 36px; min-width: 36px; padding: 0; }
+${A} .abv-header-filters { display: flex; align-items: center; gap: 8px; min-width: 0; }
+${A} .abv-header-filters .abv-filter-control { flex: 1 1 0; min-width: 0; }
+${A} .abv-header-filters .abv-filter-control select { flex: 1 1 auto; min-width: 0; max-width: none; width: 100%; }
+${A} button.abv-text-btn { flex: none; min-height: 28px; padding: 2px 6px; border-color: transparent; background: transparent; color: #4e3a9c; font-size: 12px; text-decoration: underline; }
 ${A} button, ${A} select { min-height: 34px; border-radius: 7px; border: 1px solid #b8bdc7; background: #fff; color: #22252a; padding: 6px 10px; font: 600 13px/1 system-ui, sans-serif; }
 ${A} button { cursor: pointer; }
 ${A} button.active { background: #342b55; border-color: #342b55; color: #fff; }
@@ -47,7 +55,11 @@ ${A} .abv-diag ul { margin: 0; padding-left: 18px; }
 
 ${A} .abv-body { min-height: 0; flex: 1; display: flex; overflow: hidden; }
 ${A} .abv-view-panel { min-height: 0; min-width: 0; flex: 1 1 auto; display: flex; overflow: hidden; }
-${A} .abv-graph-wrap, ${A} .abv-list-wrap { position: relative; flex: 1 1 auto; min-width: 0; min-height: 0; overflow: auto; }
+${A} .abv-graph-frame, ${A} .abv-list-frame { position: relative; flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; }
+${A} .abv-graph-tools { position: absolute; top: 8px; right: 14px; z-index: 5; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; max-width: calc(100% - 28px); }
+${A} .abv-tools-toggle { display: none; box-shadow: 0 2px 8px rgba(0,0,0,.15); }
+${A} .abv-tools-body { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; padding: 6px 10px; border: 1px solid #d7dae0; border-radius: 9px; background: rgba(255,255,255,.95); box-shadow: 0 2px 10px rgba(0,0,0,.12); }
+${A} .abv-graph-wrap, ${A} .abv-list-wrap { position: relative; flex: 1 1 0; min-width: 0; min-height: 0; overflow: auto; }
 ${A} .abv-graph-wrap { background: linear-gradient(#f6f7f9 1px, transparent 1px), linear-gradient(90deg, #f6f7f9 1px, transparent 1px), #fff; background-size: 24px 24px; }
 ${A} .abv-list-wrap { background: #f6f7f9; }
 ${A} .abv-canvas { position: relative; min-width: 100%; min-height: 100%; }
@@ -199,7 +211,9 @@ ${A} .abv-court-status.late { color: #8b3434; font-weight: 700; }
 ${A} .abv-court-status.ontime { color: #315f54; }
 ${A} .abv-copy-fallback { width: 100%; min-height: 120px; margin: 0 0 12px; font: 12px/1.4 system-ui, sans-serif; }
 ${A} .abv-all-items summary { cursor: pointer; font-weight: 700; font-size: 13px; margin-bottom: 10px; }
-${A} .abv-my-teams { gap: 6px; padding: 6px 14px; }
+${A} .abv-my-teams { gap: 6px; padding: 5px 14px; flex-wrap: nowrap; overflow-x: auto; white-space: nowrap; }
+${A} .abv-my-teams > * { flex: none; }
+${A} .abv-my-teams > .abv-muted { overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
 ${A} .abv-my-label { font-size: 12px; font-weight: 800; color: #342b55; margin-right: 4px; }
 ${A} .abv-chip { min-height: 28px; padding: 4px 10px; border-radius: 999px; font-size: 12px; }
 ${A} .abv-chip small { font-weight: 600; opacity: .75; }
@@ -215,12 +229,14 @@ ${A} .abv-link-button { justify-self: start; min-height: 26px; margin-top: 4px; 
 ${A} .abv-tl-item.conflict { box-shadow: 0 0 0 2px rgba(139,52,52,.35); }
 ${A} .abv-scenario-summary { margin: 0 0 10px; padding: 10px 12px; border: 1px solid #d8dce3; border-left: 4px solid #342b55; border-radius: 8px; background: #fff; font-size: 12px; line-height: 1.5; }
 
+${A}.abv-compact .abv-header-filters .abv-label-text { display: none; }
+${A}.abv-compact .abv-tools-toggle { display: inline-block; }
+${A}.abv-compact .abv-graph-tools:not(.tools-open) .abv-tools-body { display: none; }
+
 @media ${MOBILE_QUERY} {
     ${A} { inset: 0; border-radius: 0; border: 0; }
-    ${A} .abv-header { padding: 8px; gap: 6px; }
-    ${A} .abv-title { flex: 1 1 100%; min-width: 0; }
-    ${A} .abv-filter-control { flex: 1 1 45%; }
-    ${A} .abv-filter-control select { min-width: 0; max-width: none; width: 100%; }
+    ${A} .abv-header { padding: 6px 8px; gap: 4px; }
+    ${A} .abv-my-teams { padding: 4px 8px; }
     ${A} .abv-bar, ${A} .abv-view-tabs { padding: 6px 8px; }
     ${A} .abv-view-panel { flex-direction: column; }
     ${A} .abv-detail { flex: 0 0 auto; width: 100%; max-width: none; min-width: 0; max-height: 38vh; border-left: 0; border-top: 1px solid #d7dae0; }
