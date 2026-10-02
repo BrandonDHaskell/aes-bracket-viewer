@@ -67,7 +67,10 @@ ${A} .abv-body { min-height: 0; flex: 1; display: flex; overflow: hidden; }
 ${A} .abv-view-panel { min-height: 0; min-width: 0; flex: 1 1 auto; display: flex; overflow: hidden; }
 ${A} .abv-graph-frame, ${A} .abv-list-frame { position: relative; flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; }
 ${A} .abv-graph-tools { position: absolute; top: 8px; right: 14px; z-index: 5; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; max-width: calc(100% - 28px); }
-${A} .abv-tools-toggle { display: none; box-shadow: 0 2px 8px rgba(0,0,0,.15); }
+${A}.abv-compact .abv-detail-toggle { display: none; }
+${A}:not(.abv-compact) .abv-view-panel.detail-collapsed .abv-detail { display: none; }
+${A} .abv-detail-toggle, ${A} .abv-tools-toggle { box-shadow: 0 2px 8px rgba(0,0,0,.15); }
+${A} .abv-tools-toggle { display: none; }
 ${A} .abv-tools-body { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; padding: 6px 10px; border: 1px solid #d7dae0; border-radius: 9px; background: rgba(255,255,255,.95); box-shadow: 0 2px 10px rgba(0,0,0,.12); }
 ${A} .abv-graph-wrap, ${A} .abv-list-wrap { position: relative; flex: 1 1 0; min-width: 0; min-height: 0; overflow: auto; }
 ${A} .abv-graph-wrap { background: linear-gradient(#f6f7f9 1px, transparent 1px), linear-gradient(90deg, #f6f7f9 1px, transparent 1px), #fff; background-size: 24px 24px; }

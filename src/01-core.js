@@ -36,6 +36,7 @@
         showEdgeLabels: true,
         showFuturePath: true,
         notify: false,
+        detailCollapsed: false,       // wide screens: Tournament detail panel hidden
         warmupMinutes: 45
     };
 

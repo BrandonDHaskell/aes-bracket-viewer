@@ -68,6 +68,7 @@ function createViewer() {
     app.setAttribute('aria-label', 'AES bracket viewer');
     const graphTools = `
                     <div class="abv-graph-tools" data-role="graph-tools">
+                        <button type="button" class="abv-detail-toggle" data-action="toggle-detail" aria-expanded="true">Hide details</button>
                         <button type="button" class="abv-tools-toggle" data-action="toggle-tools" aria-expanded="false">Options</button>
                         <div class="abv-tools-body">
                             <label class="abv-filter-control">Group <select data-action="group" aria-label="Group"><option value="__all__">All groups</option></select></label>
@@ -209,6 +210,10 @@ function handleAction(action, element = null) {
         case 'dismiss-banner':
             state.dismissedBanner = state.bannerText;
             showBanner(state.bannerText);
+            break;
+        case 'toggle-detail':
+            savePrefs({ detailCollapsed: !state.prefs.detailCollapsed });
+            updateViewControls();
             break;
         case 'toggle-tools':
             state.toolsOpen = !state.toolsOpen;
@@ -356,6 +361,11 @@ function updateViewControls() {
     const set = (selector, apply) => { const element = $(selector); if (element) apply(element); };
     set('[data-action="clear-trace"]', el => { el.hidden = !state.traceNodeKey; });
     set('[data-role="graph-tools"]', el => { el.classList.toggle('tools-open', state.toolsOpen); });
+    set('[data-panel="tournament"]', el => { el.classList.toggle('detail-collapsed', Boolean(state.prefs.detailCollapsed)); });
+    set('[data-action="toggle-detail"]', el => {
+        el.setAttribute('aria-expanded', String(!state.prefs.detailCollapsed));
+        el.textContent = state.prefs.detailCollapsed ? 'Show details' : 'Hide details';
+    });
     set('[data-action="toggle-tools"]', el => { el.setAttribute('aria-expanded', String(state.toolsOpen)); });
     set('[data-action="future-path"]', el => { el.disabled = state.teamFilterId == null; el.checked = state.showFuturePath; });
     set('[data-action="labels"]', el => { el.checked = state.showEdgeLabels; });
