@@ -294,7 +294,17 @@ function teamWorkAssignments(team = selectedFocusTeam()) {
         .sort(compareNodeSchedule);
 }
 
+// While a node is traced, only the traced matches are drawn. Everything else would just
+// be faded, so leaving it out saves screen space; clearing the trace brings it back.
 function getBaseVisibleKeys() {
+    const base = getUntracedVisibleKeys();
+    if (!state.traceNodeKey) return base;
+    const visibleKeys = new Set([...state.traceUpstreamNodes, ...state.traceDownstreamNodes].filter(key => state.nodes.has(key)));
+    const contextKeys = new Set([...visibleKeys].filter(key => !base.groupCoreKeys.has(key)));
+    return { visibleKeys, groupCoreKeys: base.groupCoreKeys, contextKeys };
+}
+
+function getUntracedVisibleKeys() {
     const filtered = state.clubFilterId != null || state.teamFilterId != null;
     const modeKeys = filtered ? state.filterRelatedNodes : new Set(state.nodes.keys());
     const traceKeys = state.traceNodeKey ? [...state.traceUpstreamNodes, ...state.traceDownstreamNodes] : [];
