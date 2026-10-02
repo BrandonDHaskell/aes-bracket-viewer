@@ -131,6 +131,8 @@ const media = initial => w => {
     const mine = t.q('[data-role="my-teams"]');
     check('compact: My teams is one row of chips', mine.querySelectorAll('.abv-chip').length >= 2 && mine.parentElement === t.app && !mine.hidden);
     check('compact: status chip still shown', /^Checked/.test(t.q('[data-role="status-chip"]').textContent));
+    const css = t.doc.getElementById('aes-bracket-viewer-styles').textContent;
+    check('compact: detail panels are hidden by the compact class', /\.abv-compact \.abv-detail[^{]*\{ display: none/.test(css) && t.q('[data-detail="tournament"]').closest('.abv-compact'));
     t.w.__setNarrow(false);
     check('change event returns to wide layout', !t.app.classList.contains('abv-compact') && t.q('[data-role="bottom-nav"]').hidden && t.q('[data-role="view-tabs"]').parentElement === t.q('[data-role="subbar"]'));
     check('no runtime errors (compact)', t.errors.length === 0, t.errors.slice(0, 2).join(' | '));

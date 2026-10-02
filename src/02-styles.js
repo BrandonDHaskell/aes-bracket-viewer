@@ -67,7 +67,7 @@ ${A} .abv-body { min-height: 0; flex: 1; display: flex; overflow: hidden; }
 ${A} .abv-view-panel { min-height: 0; min-width: 0; flex: 1 1 auto; display: flex; overflow: hidden; }
 ${A} .abv-graph-frame, ${A} .abv-list-frame { position: relative; flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; }
 ${A} .abv-graph-tools { position: absolute; top: 8px; right: 14px; z-index: 5; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; max-width: calc(100% - 28px); }
-${A}.abv-compact .abv-detail-toggle { display: none; }
+${A}.abv-compact .abv-detail-toggle, ${A}.abv-compact .abv-detail { display: none; }
 ${A}:not(.abv-compact) .abv-view-panel.detail-collapsed .abv-detail { display: none; }
 ${A} .abv-detail-toggle, ${A} .abv-tools-toggle { box-shadow: 0 2px 8px rgba(0,0,0,.15); }
 ${A} .abv-tools-toggle { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -251,8 +251,6 @@ ${A} .abv-graph-tools:not(.tools-open) .abv-tools-body { display: none; }
     ${A} .abv-my-teams { padding: 4px 8px; }
     ${A} .abv-bar { padding: 6px 8px; }
     ${A} .abv-view-panel { flex-direction: column; }
-    ${A} .abv-detail { flex: 0 0 auto; width: 100%; max-width: none; min-width: 0; max-height: 38vh; border-left: 0; border-top: 1px solid #d7dae0; }
-    ${A} .abv-view-panel:not([data-panel="tournament"]) .abv-detail { display: none; }
     ${A} .abv-list-view { padding: 10px; }
     ${A} .abv-journey-item { grid-template-columns: 1fr; gap: 6px; }
     ${A} .abv-tl-item { grid-template-columns: 70px 1fr; }
