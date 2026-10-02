@@ -534,6 +534,8 @@ function renderStatusChip() {
     const label = $('[data-role="updated-label"]');
     if (!chip) return;
     const ready = state.loaded && !state.loading;
+    // The first load shows the current weekend, then fills in earlier ones in the background.
+    const loadingMore = state.loaded && state.pendingPoolSheets.size > 0;
     const notes = state.loaded ? state.unresolved.length + state.outcomeConflicts.length + state.poolSheetFailures.length : 0;
     const changedAt = state.lastUpdatedTimestamp || state.lastLoadedAt;
     const syncedAt = state.lastSyncedAt || state.lastLoadedAt;
@@ -546,9 +548,10 @@ function renderStatusChip() {
     let text = 'Loading...';
     if (state.statusKind === 'notice' && state.statusNotice) text = state.statusNotice;
     else if (!state.loaded && state.loadError && !state.loading) text = 'Not loaded';
-    else if (ready) {
+    else if (ready || loadingMore) {
         const age = relativeAge(syncedAt);
         text = `${state.compact ? 'Checked' : 'Last checked:'} ${age || 'just now'}`;
+        if (loadingMore) text += ` \u00b7 loading earlier weekends (${state.pendingPoolSheets.size})`;
     }
     chip.textContent = notes ? `${text} (${notes})` : text;
     chip.title = ready
