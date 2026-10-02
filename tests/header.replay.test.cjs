@@ -67,6 +67,21 @@ const media = initial => w => {
     check('Group hidden off the Tournament view', groups[0].closest('[data-panel]').hidden);
     t.click(t.q('[data-view="tournament"]'));
 
+    // Toolbar is collapsed by default and the choice is remembered.
+    const tools = t.q('[data-role="graph-tools"]');
+    const pill = t.q('[data-action="toggle-tools"]');
+    check('toolbar starts collapsed', !tools.classList.contains('tools-open') && pill.getAttribute('aria-expanded') === 'false');
+    t.click(pill);
+    check('Options opens the toolbar', tools.classList.contains('tools-open') && pill.getAttribute('aria-expanded') === 'true');
+    const groupOption = [...t.q('[data-action="group"]').options].find(o => o.value !== '__all__');
+    t.change(t.q('[data-action="group"]'), groupOption.value);
+    check('pill names the selected group', pill.textContent.includes(groupOption.text.replace(/^\u2605 /, '')), pill.textContent);
+    tools.querySelector('select').focus();
+    tools.querySelector('select').dispatchEvent(new t.w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    check('Escape collapses the toolbar and keeps the viewer open', !tools.classList.contains('tools-open') && t.app.classList.contains('open') && t.doc.activeElement === pill);
+    t.click(pill);
+    t.change(t.q('[data-action="group"]'), '__all__');
+
     // Clear trace only while tracing.
     check('Clear trace hidden without a trace', t.q('[data-action="clear-trace"]').hidden);
     t.click(t.q('[data-node-key]'));
@@ -99,6 +114,7 @@ const media = initial => w => {
 
     // The collapse survives a reload.
     t = await open({ setup: media(false), prefs: JSON.parse(stored) });
+    check('toolbar open state is remembered across reloads', t.q('[data-role="graph-tools"]').classList.contains('tools-open'));
     check('collapse is remembered across reloads', t.q('[data-panel="tournament"]').classList.contains('detail-collapsed'));
     t.click(t.q('[data-action="toggle-detail"]'));
     check('toggle expands again', !t.q('[data-panel="tournament"]').classList.contains('detail-collapsed'));

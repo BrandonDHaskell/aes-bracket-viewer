@@ -36,6 +36,7 @@
         showEdgeLabels: true,
         showFuturePath: true,
         notify: false,
+        toolsOpen: false,             // Tournament options toolbar expanded
         detailCollapsed: false,       // wide screens: Tournament detail panel hidden
         warmupMinutes: 45
     };
@@ -126,7 +127,6 @@
         showFuturePath: true,
         tournamentDensity: 'compact',
         showSettings: false,
-        toolsOpen: false,
         statusKind: 'loading',
         statusNotice: '',
         bannerText: '',

@@ -68,15 +68,15 @@ function createViewer() {
     app.setAttribute('aria-label', 'AES bracket viewer');
     const graphTools = `
                     <div class="abv-graph-tools" data-role="graph-tools">
-                        <button type="button" class="abv-detail-toggle" data-action="toggle-detail" aria-expanded="true">Hide details</button>
-                        <button type="button" class="abv-tools-toggle" data-action="toggle-tools" aria-expanded="false">Options</button>
-                        <div class="abv-tools-body">
+                        <button type="button" class="abv-tools-toggle" data-action="toggle-tools" aria-expanded="false" aria-controls="abv-tools-body">Options</button>
+                        <div class="abv-tools-body" id="abv-tools-body">
                             <label class="abv-filter-control">Group <select data-action="group" aria-label="Group"><option value="__all__">All groups</option></select></label>
                             <label class="abv-check"><input type="checkbox" data-action="future-path" checked> Show future path</label>
                             <label class="abv-check"><input type="checkbox" data-action="labels" checked> Edge labels</label>
                             <label class="abv-filter-control">Node size
                                 <select data-action="density"><option value="compact">Compact</option><option value="standard">Standard</option></select>
                             </label>
+                            <button type="button" class="abv-detail-toggle" data-action="toggle-detail" aria-expanded="true">Hide details</button>
                             <button type="button" data-action="clear-trace" hidden>Clear trace</button>
                         </div>
                     </div>`;
@@ -185,6 +185,13 @@ function onAppChange(event) {
 }
 
 function onAppKeydown(event) {
+    if (event.key === 'Escape' && state.prefs.toolsOpen && event.target instanceof Element && event.target.closest('[data-role="graph-tools"]')) {
+        event.preventDefault();
+        savePrefs({ toolsOpen: false });
+        updateViewControls();
+        $('[data-action="toggle-tools"]')?.focus();
+        return;
+    }
     if (event.key !== 'Enter' && event.key !== ' ') return;
     const target = event.target;
     if (!(target instanceof Element)) return;
@@ -216,7 +223,7 @@ function handleAction(action, element = null) {
             updateViewControls();
             break;
         case 'toggle-tools':
-            state.toolsOpen = !state.toolsOpen;
+            savePrefs({ toolsOpen: !state.prefs.toolsOpen });
             updateViewControls();
             break;
         case 'reset-filters': resetFilters(); break;
@@ -360,13 +367,17 @@ function updateViewControls() {
     });
     const set = (selector, apply) => { const element = $(selector); if (element) apply(element); };
     set('[data-action="clear-trace"]', el => { el.hidden = !state.traceNodeKey; });
-    set('[data-role="graph-tools"]', el => { el.classList.toggle('tools-open', state.toolsOpen); });
+    set('[data-role="graph-tools"]', el => { el.classList.toggle('tools-open', Boolean(state.prefs.toolsOpen)); });
     set('[data-panel="tournament"]', el => { el.classList.toggle('detail-collapsed', Boolean(state.prefs.detailCollapsed)); });
     set('[data-action="toggle-detail"]', el => {
         el.setAttribute('aria-expanded', String(!state.prefs.detailCollapsed));
         el.textContent = state.prefs.detailCollapsed ? 'Show details' : 'Hide details';
     });
-    set('[data-action="toggle-tools"]', el => { el.setAttribute('aria-expanded', String(state.toolsOpen)); });
+    set('[data-action="toggle-tools"]', el => {
+        el.setAttribute('aria-expanded', String(Boolean(state.prefs.toolsOpen)));
+        const group = state.groupFilterKey ? state.groupOptions?.find(option => option.key === state.groupFilterKey)?.label : '';
+        el.textContent = group ? `Options \u00b7 ${group}` : 'Options';
+    });
     set('[data-action="future-path"]', el => { el.disabled = state.teamFilterId == null; el.checked = state.showFuturePath; });
     set('[data-action="labels"]', el => { el.checked = state.showEdgeLabels; });
     set('[data-action="density"]', el => { el.value = state.tournamentDensity; });
