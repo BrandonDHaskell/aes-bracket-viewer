@@ -2,7 +2,29 @@
  * 3. Viewer shell, event wiring, settings, diagnostics
  * ======================================================================= */
 
-const $ = selector => document.querySelector(`#${APP_ID} ${selector}`);
+// Viewer elements are looked up once and reused while they stay in the page. Elements that a
+// render re-creates are detached from the page, so they are simply looked up again.
+const elementCache = new Map();
+const $ = selector => {
+    const cached = elementCache.get(selector);
+    if (cached?.isConnected) return cached;
+    const element = document.querySelector(`#${APP_ID} ${selector}`);
+    if (element) elementCache.set(selector, element);
+    else elementCache.delete(selector);
+    return element;
+};
+
+// The view panels and the tab buttons never change after the viewer is created.
+let shellLists = null;
+function viewerLists(app) {
+    if (!shellLists || !shellLists.panels[0]?.isConnected) {
+        shellLists = {
+            panels: [...app.querySelectorAll('[data-panel]')],
+            tabs: [...app.querySelectorAll('.abv-view-tabs [data-view]')]
+        };
+    }
+    return shellLists;
+}
 const isOpen = () => Boolean(document.getElementById(APP_ID)?.classList.contains('open'));
 const emptyHtml = text => `<div class="abv-empty">${escapeHtml(text)}</div>`;
 
@@ -26,9 +48,39 @@ function updateLauncher() {
     const button = document.getElementById(BUTTON_ID);
     if (button) button.textContent = state.divisionName ? `${shortDivisionLabel(state.divisionName)} Bracket` : 'Bracket Viewer';
     const title = $('[data-role="title"]');
-    const subtitle = $('[data-role="subtitle"]');
+    const division = $('[data-role="title-division"]');
     if (title) title.textContent = state.event?.Name || state.event?.EventName || 'AES Bracket Viewer';
-    if (subtitle) subtitle.textContent = state.divisionName ? `${state.divisionName}: club, team, and group progression` : 'Loading';
+    if (division) {
+        division.hidden = !state.divisionName;
+        division.textContent = state.divisionName ? `\u00b7 ${state.divisionName}` : '';
+    }
+}
+
+const ICON_PATHS = {
+    refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/>',
+    settings: '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
+    close: '<path d="M6 6l12 12M18 6L6 18"/>'
+};
+const iconButton = (action, label, icon, extra = '') => `<button type="button" class="abv-icon-btn" data-action="${action}" aria-label="${label}" title="${label}" ${extra}><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${ICON_PATHS[icon]}</svg></button>`;
+
+function setCompact(compact) {
+    state.compact = compact;
+    const app = document.getElementById(APP_ID);
+    if (!app) return;
+    app.classList.toggle('abv-compact', compact);
+    renderStatusChip();
+    // One set of view buttons: bottom navigation on phones, beside the status chip otherwise.
+    const tabs = app.querySelector('[data-role="view-tabs"]');
+    const bottom = app.querySelector('[data-role="bottom-nav"]');
+    const subbar = app.querySelector('[data-role="subbar"]');
+    if (!tabs || !bottom || !subbar) return;
+    if (compact) bottom.appendChild(tabs);
+    else subbar.prepend(tabs);
+    bottom.hidden = !compact;
+    tabs.querySelectorAll('[data-short]').forEach(button => {
+        button.dataset.long ??= button.textContent;
+        button.textContent = compact ? button.dataset.short : button.dataset.long;
+    });
 }
 
 function createViewer() {
@@ -37,24 +89,47 @@ function createViewer() {
     app.id = APP_ID;
     app.setAttribute('role', 'dialog');
     app.setAttribute('aria-label', 'AES bracket viewer');
+    const graphTools = `
+                    <div class="abv-graph-tools" data-role="graph-tools">
+                        <button type="button" class="abv-tools-toggle" data-action="toggle-tools" aria-expanded="false" aria-controls="abv-tools-body">Options</button>
+                        <div class="abv-tools-body" id="abv-tools-body">
+                            <label class="abv-filter-control">Group <select data-action="group" aria-label="Group"><option value="__all__">All groups</option></select></label>
+                            <label class="abv-check"><input type="checkbox" data-action="future-path" checked> Show future path</label>
+                            <label class="abv-check"><input type="checkbox" data-action="labels" checked> Edge labels</label>
+                            <label class="abv-filter-control">Node size
+                                <select data-action="density"><option value="compact">Compact</option><option value="standard">Standard</option></select>
+                            </label>
+                            <button type="button" class="abv-detail-toggle" data-action="toggle-detail" aria-expanded="true">Hide details</button>
+                            <button type="button" data-action="clear-trace" hidden>Clear trace</button>
+                        </div>
+                    </div>`;
     const panel = (mode, heading, text) => `
             <section class="abv-view-panel" data-panel="${mode}" ${mode === 'tournament' ? '' : 'hidden'}>
-                <div class="${mode === 'tournament' ? 'abv-graph-wrap' : 'abv-list-wrap'}">
-                    <div class="${mode === 'tournament' ? 'abv-canvas' : 'abv-list-canvas'}" data-canvas="${mode}"></div>
+                <div class="${mode === 'tournament' ? 'abv-graph-frame' : 'abv-list-frame'}">
+                    <div class="${mode === 'tournament' ? 'abv-graph-wrap' : 'abv-list-wrap'}">
+                        <div class="${mode === 'tournament' ? 'abv-canvas' : 'abv-list-canvas'}" data-canvas="${mode}"></div>
+                    </div>${mode === 'tournament' ? graphTools : ''}
                 </div>
                 <aside class="abv-detail" data-detail="${mode}"><h3>${heading}</h3><p class="abv-muted">${text}</p></aside>
             </section>`;
     app.innerHTML = `
             <div class="abv-header">
-                <div class="abv-title"><strong data-role="title">AES Bracket Viewer</strong><small data-role="subtitle">Loading</small></div>
-                <label class="abv-filter-control">Club <select data-action="club"><option value="__all__">All clubs</option></select></label>
-                <label class="abv-filter-control">Team <select data-action="team"><option value="__all__">All teams</option></select></label>
-                <label class="abv-filter-control">Group <select data-action="group"><option value="__all__">All groups</option></select></label>
-                <button type="button" data-action="reset-filters">Reset filters</button>
-                <button type="button" data-action="clear-trace" disabled>Clear trace</button>
-                <button type="button" data-action="refresh">Refresh</button>
-                <button type="button" data-action="toggle-settings" aria-expanded="false">Settings</button>
-                <button type="button" data-action="close" aria-label="Close viewer (Esc)">Close</button>
+                <div class="abv-header-top">
+                    <div class="abv-title">
+                        <strong data-role="title">AES Bracket Viewer</strong>
+                        <button type="button" class="abv-title-division" data-action="open-division" data-role="title-division" aria-label="Change division" hidden></button>
+                    </div>
+                    <div class="abv-header-actions">
+                        ${iconButton('refresh', 'Refresh', 'refresh')}
+                        ${iconButton('toggle-settings', 'Settings', 'settings', 'aria-expanded="false"')}
+                        ${iconButton('close', 'Close viewer (Esc)', 'close')}
+                    </div>
+                </div>
+                <div class="abv-header-filters">
+                    <label class="abv-filter-control"><span class="abv-label-text">Club</span> <select data-action="club" aria-label="Club"><option value="__all__">All clubs</option></select></label>
+                    <label class="abv-filter-control"><span class="abv-label-text">Team</span> <select data-action="team" aria-label="Team"><option value="__all__">All teams</option></select></label>
+                    <button type="button" class="abv-text-btn" data-action="reset-filters">Reset filters</button>
+                </div>
             </div>
             <div class="abv-bar abv-my-teams" data-role="my-teams" hidden></div>
             <div class="abv-bar" data-role="settings" hidden>
@@ -70,37 +145,40 @@ function createViewer() {
                 <button type="button" data-action="copy-link">Copy link to this view</button>
                 <span class="abv-muted" data-role="settings-note"></span>
             </div>
-            <div class="abv-view-tabs" role="tablist">
-                <button type="button" role="tab" data-view="tournament" class="active">Tournament</button>
-                <button type="button" role="tab" data-view="journey">Match Day</button>
-                <button type="button" role="tab" data-view="performance">Standings &amp; Outlook</button>
-                <button type="button" role="tab" data-view="stats">Stats</button>
-                <button type="button" role="tab" data-view="scouting">Scouting</button>
+            <div class="abv-banner" role="alert" data-role="banner" hidden>
+                <span data-role="banner-text"></span>
+                <button type="button" class="abv-text-btn" data-action="dismiss-banner" aria-label="Dismiss message">Dismiss</button>
             </div>
-            <div class="abv-bar" data-role="tournament-tools">
-                <label class="abv-check"><input type="checkbox" data-action="future-path" checked> Show future path</label>
-                <label class="abv-check"><input type="checkbox" data-action="labels" checked> Edge labels</label>
-                <label class="abv-filter-control">Node size
-                    <select data-action="density"><option value="compact">Compact</option><option value="standard">Standard</option></select>
-                </label>
-                <span class="abv-muted">Select a node to trace every linked match before and after it. Select it again to clear.</span>
+            <div class="abv-subbar" data-role="subbar">
+                <div class="abv-view-tabs" role="tablist" aria-label="Views" data-role="view-tabs">
+                    <button type="button" role="tab" data-short="Map" data-view="tournament" class="active">Tournament</button>
+                    <button type="button" role="tab" data-short="Day" data-view="journey">Match Day</button>
+                    <button type="button" role="tab" data-short="Outlook" data-view="performance">Standings &amp; Outlook</button>
+                    <button type="button" role="tab" data-short="Stats" data-view="stats">Stats</button>
+                    <button type="button" role="tab" data-short="Scout" data-view="scouting">Scouting</button>
+                </div>
+                <span class="abv-updated" data-role="updated-label"></span>
+                <button type="button" class="abv-status-chip" data-action="toggle-diagnostics" data-role="status-chip" aria-expanded="false">Loading...</button>
             </div>
-            <div class="abv-status">
-                <span class="abv-status-text" data-role="status-text">Open the viewer to load AES data.</span>
-                <button type="button" data-action="toggle-diagnostics" aria-expanded="false">Details</button>
+            <div class="abv-diag" data-role="diagnostics" hidden>
+                <div class="abv-status"><span class="abv-status-text" data-role="status-text">Open the viewer to load AES data.</span></div>
+                <div data-role="diag-body"></div>
             </div>
-            <div class="abv-diag" data-role="diagnostics" hidden></div>
             <div class="abv-body">
                 ${panel('tournament', 'Tournament', 'Select a node to see how teams arrive there and where they go next.')}
                 ${panel('journey', 'Match Day', 'Select a team to see its matches and work assignments in order.')}
                 ${panel('performance', 'Standings &amp; Outlook', 'Select a team to compare it with the other teams in its pool.')}
                 ${panel('stats', 'Stats', 'Select a team to see its results and patterns.')}
                 ${panel('scouting', 'Scouting', 'Pick an opponent to see its results and how it compares with your team.')}
-            </div>`;
+            </div>
+            <div class="abv-bottomnav" data-role="bottom-nav" hidden></div>`;
     app.addEventListener('click', onAppClick);
     app.addEventListener('change', onAppChange);
     app.addEventListener('keydown', onAppKeydown);
     document.body.appendChild(app);
+    const query = window.matchMedia?.(MOBILE_QUERY);
+    setCompact(Boolean(query?.matches));
+    query?.addEventListener?.('change', event => setCompact(event.matches));
 }
 
 function onAppClick(event) {
@@ -131,6 +209,13 @@ function onAppChange(event) {
 }
 
 function onAppKeydown(event) {
+    if (event.key === 'Escape' && state.prefs.toolsOpen && event.target instanceof Element && event.target.closest('[data-role="graph-tools"]')) {
+        event.preventDefault();
+        savePrefs({ toolsOpen: false });
+        updateViewControls();
+        $('[data-action="toggle-tools"]')?.focus();
+        return;
+    }
     if (event.key !== 'Enter' && event.key !== ' ') return;
     const target = event.target;
     if (!(target instanceof Element)) return;
@@ -147,13 +232,32 @@ function handleAction(action, element = null) {
     switch (action) {
         case 'close': closeViewer(); break;
         case 'clear-trace': clearTrace(); break;
+        case 'open-division':
+            state.showSettings = true;
+            populateSettings();
+            updateViewControls();
+            $('[data-action="division"]')?.focus();
+            break;
+        case 'dismiss-banner':
+            state.dismissedBanner = state.bannerText;
+            showBanner(state.bannerText);
+            break;
+        case 'toggle-detail':
+            savePrefs({ detailCollapsed: !state.prefs.detailCollapsed });
+            updateViewControls();
+            break;
+        case 'toggle-tools':
+            savePrefs({ toolsOpen: !state.prefs.toolsOpen });
+            updateViewControls();
+            break;
         case 'reset-filters': resetFilters(); break;
-        case 'refresh': loadData({ full: true }); break;
+        case 'refresh': loadData({ full: true, useSaved: false }); break;
         case 'toggle-settings':
             state.showSettings = !state.showSettings;
             if (state.showSettings) populateSettings();
             updateViewControls();
             break;
+        case 'copy-diagnostics': copyDiagnostics(); break;
         case 'toggle-diagnostics':
             state.showDiagnostics = !state.showDiagnostics;
             renderDiagnostics();
@@ -280,17 +384,26 @@ function setViewMode(mode) {
 function updateViewControls() {
     const app = document.getElementById(APP_ID);
     if (!app) return;
-    app.querySelectorAll('[data-panel]').forEach(panel => { panel.hidden = panel.dataset.panel !== state.viewMode; });
-    app.querySelectorAll('[data-view]').forEach(button => {
+    const { panels, tabs } = viewerLists(app);
+    panels.forEach(panel => { panel.hidden = panel.dataset.panel !== state.viewMode; });
+    tabs.forEach(button => {
         const active = button.dataset.view === state.viewMode;
         button.classList.toggle('active', active);
         button.setAttribute('aria-selected', String(active));
     });
-    const tournament = state.viewMode === 'tournament';
     const set = (selector, apply) => { const element = $(selector); if (element) apply(element); };
-    set('[data-action="group"]', el => { el.disabled = !tournament; });
-    set('[data-action="clear-trace"]', el => { el.disabled = !tournament || !state.traceNodeKey; });
-    set('[data-role="tournament-tools"]', el => { el.hidden = !tournament; });
+    set('[data-action="clear-trace"]', el => { el.hidden = !state.traceNodeKey; });
+    set('[data-role="graph-tools"]', el => { el.classList.toggle('tools-open', Boolean(state.prefs.toolsOpen)); });
+    set('[data-panel="tournament"]', el => { el.classList.toggle('detail-collapsed', Boolean(state.prefs.detailCollapsed)); });
+    set('[data-action="toggle-detail"]', el => {
+        el.setAttribute('aria-expanded', String(!state.prefs.detailCollapsed));
+        el.textContent = state.prefs.detailCollapsed ? 'Show details' : 'Hide details';
+    });
+    set('[data-action="toggle-tools"]', el => {
+        el.setAttribute('aria-expanded', String(Boolean(state.prefs.toolsOpen)));
+        const group = state.groupFilterKey ? state.groupOptions?.find(option => option.key === state.groupFilterKey)?.label : '';
+        el.textContent = group ? `Options \u00b7 ${group}` : 'Options';
+    });
     set('[data-action="future-path"]', el => { el.disabled = state.teamFilterId == null; el.checked = state.showFuturePath; });
     set('[data-action="labels"]', el => { el.checked = state.showEdgeLabels; });
     set('[data-action="density"]', el => { el.value = state.tournamentDensity; });
@@ -300,7 +413,7 @@ function updateViewControls() {
         el.classList.toggle('active', state.showSettings);
     });
     set('[data-role="diagnostics"]', el => { el.hidden = !state.showDiagnostics; });
-    set('[data-action="toggle-diagnostics"]', el => { el.setAttribute('aria-expanded', String(state.showDiagnostics)); });
+    set('[data-role="status-chip"]', el => { el.setAttribute('aria-expanded', String(state.showDiagnostics)); });
 }
 
 async function openViewer() {
@@ -313,6 +426,8 @@ async function openViewer() {
         if (!VIEWS.includes(hashView) && window.matchMedia?.(MOBILE_QUERY).matches) state.viewMode = 'journey';
     }
     updateViewControls();
+    clearInterval(state.chipTimer);
+    state.chipTimer = setInterval(renderStatusChip, 1000);
     state.lastCheckAt = Date.now();
     if (!state.loaded && !state.loading) {
         await loadData({ full: true });
@@ -324,6 +439,7 @@ async function openViewer() {
 
 function closeViewer() {
     document.getElementById(APP_ID)?.classList.remove('open');
+    clearInterval(state.chipTimer);
     clearHashState();
 }
 
@@ -344,13 +460,82 @@ function resetFilters() {
     renderGraph();
 }
 
-function setStatus(text, tone = '') {
+// `summary` marks the routine one-line status from updateStatus; anything else is a
+// progress or one-off message that the chip shows only while it applies.
+function setStatus(text, tone = '', { banner, summary = false } = {}) {
     const bar = $('.abv-status');
     const textEl = $('[data-role="status-text"]');
     if (!bar || !textEl) return;
     textEl.textContent = text;
     textEl.title = text;
     bar.classList.toggle('error', tone === 'error');
+    if (tone === 'error') showBanner(banner ?? text);
+    else if (banner === '') showBanner('');
+    state.statusKind = summary || tone === 'error' ? 'summary' : (state.loading ? 'loading' : 'notice');
+    state.statusNotice = state.statusKind === 'notice' ? text : '';
+    clearTimeout(state.noticeTimer);
+    if (state.statusKind === 'notice') state.noticeTimer = setTimeout(() => { state.statusKind = 'summary'; renderStatusChip(); }, 6000);
+    renderStatusChip();
+}
+
+function showBanner(text) {
+    const banner = $('[data-role="banner"]');
+    if (!banner) return;
+    state.bannerText = text;
+    if (!text) state.dismissedBanner = '';
+    $('[data-role="banner-text"]').textContent = text;
+    banner.hidden = !text || state.dismissedBanner === text;
+}
+
+const STALE_CHECK_MS = 180000;
+
+// Seconds under a minute, then minutes, hours, days.
+function relativeAge(epoch) {
+    const seconds = Math.floor((Date.now() - epoch) / 1000);
+    if (!Number.isFinite(seconds)) return '';
+    if (seconds < 60) return `${Math.max(0, seconds)}s ago`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    if (seconds < 48 * 3600) return `${Math.floor(seconds / 3600)}h ago`;
+    return `${Math.floor(seconds / 86400)}d ago`;
+}
+
+// YYYY-MM-DD HH:mm:ss in the effective time zone; short is MM-DD HH:mm for phones.
+function formatStamp(value, short = false) {
+    const epoch = parseEventTime(value);
+    if (!Number.isFinite(epoch)) return '';
+    const parts = Object.fromEntries(cachedFormatter('parts', effectiveTimeZone()).formatToParts(new Date(epoch)).map(part => [part.type, part.value]));
+    return short
+        ? `${parts.month}-${parts.day} ${parts.hour}:${parts.minute}`
+        : `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second}`;
+}
+
+function renderStatusChip() {
+    const chip = $('[data-role="status-chip"]');
+    const label = $('[data-role="updated-label"]');
+    if (!chip) return;
+    const ready = state.loaded && !state.loading;
+    const notes = state.loaded ? state.unresolved.length + state.outcomeConflicts.length + state.poolSheetFailures.length : 0;
+    const changedAt = state.lastUpdatedTimestamp || state.lastLoadedAt;
+    const syncedAt = state.lastSyncedAt || state.lastLoadedAt;
+    if (label) {
+        const full = state.loaded ? formatStamp(changedAt) : '';
+        label.hidden = !full;
+        label.textContent = full ? (state.compact ? `Updated ${formatStamp(changedAt, true)}` : `Last updated: ${full}`) : '';
+        label.title = full ? `${state.lastUpdatedTimestamp ? 'AES data last changed' : 'AES did not report a change time. Data loaded'} ${full} (${effectiveTimeZone()}).` : '';
+    }
+    let text = 'Loading...';
+    if (state.statusKind === 'notice' && state.statusNotice) text = state.statusNotice;
+    else if (!state.loaded && state.loadError && !state.loading) text = 'Not loaded';
+    else if (ready) {
+        const age = relativeAge(syncedAt);
+        text = `${state.compact ? 'Checked' : 'Last checked:'} ${age || 'just now'}`;
+    }
+    chip.textContent = notes ? `${text} (${notes})` : text;
+    chip.title = ready
+        ? `The viewer last checked AES ${relativeAge(syncedAt) || 'just now'}. It checks every ${DEFAULTS.freshnessCheckMs / 1000}s while open. Select for details.`
+        : ($('[data-role="status-text"]')?.textContent || text);
+    const stale = ready && Date.now() - syncedAt > STALE_CHECK_MS;
+    chip.classList.toggle('warn', notes > 0 || stale);
 }
 
 function setRefreshDisabled(disabled) {
@@ -405,7 +590,7 @@ function changeDivision(divisionId, { teamId = null } = {}) {
         const canvas = getViewCanvas(mode);
         if (canvas) canvas.innerHTML = emptyHtml('Loading division');
     }
-    loadData({ full: true });
+    loadData({ full: true, force: true });
 }
 
 function changeTimeZone(value) {
@@ -432,8 +617,40 @@ function copyViewLink() {
     );
 }
 
+// Timings measured on this device, so slow phones can be spotted from real numbers.
+function performanceRows() {
+    const perf = state.perf;
+    const ms = value => (value == null ? '-' : `${Math.round(value)} ms`);
+    const seconds = value => `${(value / 1000).toFixed(1)} s`;
+    const views = { tournament: 'Tournament', journey: 'Match Day', performance: 'Standings & Outlook', stats: 'Stats', scouting: 'Scouting' };
+    const load = perf.load;
+    const version = typeof GM_info !== 'undefined' ? GM_info.script?.version : (typeof GM !== 'undefined' ? GM.info?.script?.version : null);
+    return [
+        ['Script version', version || 'unknown'],
+        ['Last load', load
+            ? `${seconds(load.totalMs)} total, first view after ${seconds(load.firstViewMs)}, ${load.requests} requests (${load.downloaded} pool sheets downloaded, ${load.fromSaved} from saved copies${load.background ? `, ${load.background} in the background` : ''})`
+            : '-'],
+        ['Model build', ms(perf.buildMs)],
+        ['Render times', Object.entries(perf.renders)
+            .map(([view, value]) => `${views[view] || view} ${ms(value)}${view === 'tournament' && perf.tournamentElements ? ` (${perf.tournamentElements} elements)` : ''}`)
+            .join(', ') || '-'],
+        ['Last trace click', ms(perf.lastTraceMs)],
+        ['Device', `${navigator.hardwareConcurrency || '?'} CPU threads, ${window.innerWidth}x${window.innerHeight} window, ${navigator.userAgent}`]
+    ];
+}
+
+function copyDiagnostics() {
+    const text = $('[data-role="diag-body"]')?.dataset.copyText || '';
+    if (!text) return;
+    if (!navigator.clipboard?.writeText) {
+        setStatus('Copy is not available in this browser. Select the Details text instead.');
+        return;
+    }
+    navigator.clipboard.writeText(text).then(() => setStatus('Details copied.'), () => setStatus('Copy failed. Select the Details text instead.'));
+}
+
 function renderDiagnostics() {
-    const panel = $('[data-role="diagnostics"]');
+    const panel = $('[data-role="diag-body"]');
     if (!panel || !state.showDiagnostics) return;
     if (!state.loaded) {
         panel.innerHTML = '<p>No AES data loaded yet.</p>';
@@ -449,18 +666,23 @@ function renderDiagnostics() {
         ['Division', `${state.divisionName} (${state.divisionId})`],
         ['Time zone', `${effectiveTimeZone()} (${zoneSource})`],
         ['Playdays', state.dailyPlays.map(day => day.date).join(', ')],
-        ['Pool sheets', `${state.poolSheets.size} loaded, ${state.poolSheetsReused} reused from cache, ${state.poolSheetFailures.length} failed`],
+        ['Pool sheets', `${state.poolSheets.size} loaded: ${state.poolSheetsFromSaved} from saved copies, ${state.poolSheetsReused} reused from this visit, ${state.poolSheetFailures.length} failed`],
         ['Graph', `${count('match')} matches, ${count('standings')} pools, ${count('entry')} routes, ${advancement} result/placement edges (${feeds} from bracket structure)`],
         ['Unresolved references', state.unresolved.length],
         ['Duplicate WIN/LOSS branches', state.outcomeConflicts.length],
-        ['AES last update', formatDateTime(state.lastUpdatedTimestamp) || 'unknown'],
+        ['AES data last changed', formatDateTime(state.lastUpdatedTimestamp) || 'unknown'],
+        ['Last checked', formatDateTime(state.lastSyncedAt)],
         ['Last loaded', formatDateTime(state.lastLoadedAt)],
         ['Update checks', `every ${DEFAULTS.freshnessCheckMs / 1000}s while open${state.prefs.notify ? `, every ${DEFAULTS.backgroundCheckMs / 60000} min in the background` : ''}`]
     ];
+    const perfRows = performanceRows();
     const list = (title, items, describe) => items.length
         ? `<h4>${escapeHtml(title)}</h4><ul>${items.slice(0, 25).map(item => `<li>${escapeHtml(describe(item))}</li>`).join('')}${items.length > 25 ? `<li>and ${items.length - 25} more</li>` : ''}</ul>`
         : '';
-    panel.innerHTML = `<dl>${rows.map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd>`).join('')}</dl>`
+    const table = entries => `<dl>${entries.map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd>`).join('')}</dl>`;
+    panel.dataset.copyText = [...rows, ...perfRows].map(([label, value]) => `${label}: ${value}`).join('\n');
+    panel.innerHTML = table(rows)
+        + `<h4>Performance on this device</h4>${table(perfRows)}<p><button type="button" data-action="copy-diagnostics">Copy details</button></p>`
         + list('Unresolved references', state.unresolved, u => `${u.reason}: "${u.sourceText || ''}" into ${u.to || 'unknown'}`)
         + list('Duplicate WIN/LOSS branches', state.outcomeConflicts, c => `${c.from} ${c.condition} goes to ${c.destinations.join(', ')}`)
         + list('Pool sheet failures', state.poolSheetFailures, f => `Play ${f.playId}: ${f.error}`);

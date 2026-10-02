@@ -147,11 +147,9 @@ function latestTeamNode(directKeys) {
 function computeTeamScope(team) {
     const direct = new Set();
     const teamPools = new Set();
-    for (const node of state.nodes.values()) {
-        if (node.kind === 'match' && matchContainsTeam(node.match, team)) {
-            direct.add(node.key);
-            if (node.poolGroupKey) teamPools.add(node.poolGroupKey);
-        }
+    for (const node of teamMatchNodes(team)) {
+        direct.add(node.key);
+        if (node.poolGroupKey) teamPools.add(node.poolGroupKey);
     }
     const current = new Set(direct);
     for (const poolKey of teamPools) {
@@ -273,11 +271,65 @@ function findActiveTeamMatch(nodeKeys) {
     return items.sort((a, b) => b.time - a.time || b.node.key.localeCompare(a.node.key))[0]?.node || null;
 }
 
+// Every match each team plays or works, built once per model instead of scanning all match
+// nodes on every lookup. Uses the isSameTeam rule: the team id when the match carries one,
+// otherwise an exact name (or AES display text) match.
+const teamIndexCache = { nodes: null, tz: null, plays: new Map(), work: new Map(), sorted: new Map() };
+function teamMatchIndex() {
+    const tz = effectiveTimeZone();
+    if (teamIndexCache.nodes === state.nodes && teamIndexCache.tz === tz) return teamIndexCache;
+    const byName = new Map();
+    const addName = (name, team) => {
+        const key = normName(name);
+        if (!key) return;
+        if (!byName.has(key)) byName.set(key, new Set());
+        byName.get(key).add(team);
+    };
+    for (const team of state.teamDirectory) {
+        addName(team.name, team);
+        if (team.text) addName(team.text, team);
+    }
+    const teamsFor = participant => {
+        if (!participant) return [];
+        if (participant.id != null) {
+            const team = state.teamById.get(Number(participant.id));
+            return team ? [team] : [];
+        }
+        return [...(byName.get(normName(participant.label ?? participant.name)) || [])];
+    };
+    const plays = new Map();
+    const work = new Map();
+    const add = (map, team, node) => {
+        if (!map.has(team.id)) map.set(team.id, []);
+        const list = map.get(team.id);
+        if (list.at(-1) !== node) list.push(node);
+    };
+    for (const node of state.nodes.values()) {
+        if (node.kind !== 'match') continue;
+        for (const side of ['first', 'second']) {
+            for (const team of teamsFor(matchParticipant(node.match, side))) add(plays, team, node);
+        }
+        for (const team of teamsFor(matchWorkParticipant(node.match))) add(work, team, node);
+    }
+    Object.assign(teamIndexCache, { nodes: state.nodes, tz, plays, work, sorted: new Map() });
+    return teamIndexCache;
+}
+
+// Teams outside the directory (never expected) fall back to scanning every match.
+const isDirectoryTeam = team => state.teamById.get(Number(team?.id)) === team;
+
+function teamMatchNodes(team) {
+    if (!isDirectoryTeam(team)) return [...state.nodes.values()].filter(node => node.kind === 'match' && matchContainsTeam(node.match, team));
+    return teamMatchIndex().plays.get(team.id) || [];
+}
+
 function selectedTeamMatches(team = selectedFocusTeam()) {
     if (!team) return [];
+    const index = isDirectoryTeam(team) ? teamMatchIndex() : null;
+    const cacheKey = `plays:${team.id}`;
+    if (index?.sorted.has(cacheKey)) return [...index.sorted.get(cacheKey)];
     const seen = new Set();
-    return [...state.nodes.values()]
-        .filter(node => node.kind === 'match' && matchContainsTeam(node.match, team))
+    const list = teamMatchNodes(team)
         .filter(node => {
             const id = node.match?.MatchId ?? node.key;
             if (seen.has(id)) return false;
@@ -285,13 +337,21 @@ function selectedTeamMatches(team = selectedFocusTeam()) {
             return true;
         })
         .sort(compareNodeSchedule);
+    if (index) index.sorted.set(cacheKey, list);
+    return [...list];
 }
 
 function teamWorkAssignments(team = selectedFocusTeam()) {
     if (!team) return [];
-    return [...state.nodes.values()]
-        .filter(node => node.kind === 'match' && isSameTeam(matchWorkParticipant(node.match), team))
-        .sort(compareNodeSchedule);
+    if (!isDirectoryTeam(team)) {
+        return [...state.nodes.values()]
+            .filter(node => node.kind === 'match' && isSameTeam(matchWorkParticipant(node.match), team))
+            .sort(compareNodeSchedule);
+    }
+    const index = teamMatchIndex();
+    const cacheKey = `work:${team.id}`;
+    if (!index.sorted.has(cacheKey)) index.sorted.set(cacheKey, [...(index.work.get(team.id) || [])].sort(compareNodeSchedule));
+    return [...index.sorted.get(cacheKey)];
 }
 
 function getBaseVisibleKeys() {
@@ -365,7 +425,17 @@ function computeTrace(nodeKey) {
     });
 }
 
+// The nodes and edges currently traced, plus the selected node: the only elements whose
+// classes can change when the trace changes.
+function traceMembers() {
+    return {
+        nodes: new Set([...state.traceUpstreamNodes, ...state.traceDownstreamNodes, state.selectedNodeKey].filter(Boolean)),
+        edges: new Set([...state.traceUpstreamEdges, ...state.traceDownstreamEdges])
+    };
+}
+
 function clearTrace(render = true) {
+    const before = traceMembers();
     Object.assign(state, {
         traceNodeKey: null,
         traceUpstreamNodes: new Set(),
@@ -373,11 +443,12 @@ function clearTrace(render = true) {
         traceUpstreamEdges: new Set(),
         traceDownstreamEdges: new Set()
     });
-    if (render) applyTraceChange();
+    if (render) applyTraceChange(before);
 }
 
 function selectNode(nodeKey) {
     if (!state.nodes.has(nodeKey)) return;
+    const before = traceMembers();
     state.selectedNodeKey = nodeKey;
     if (state.viewMode !== 'tournament') {
         renderGraph();
@@ -385,16 +456,32 @@ function selectNode(nodeKey) {
     }
     if (state.traceNodeKey === nodeKey) clearTrace(false);
     else computeTrace(nodeKey);
-    applyTraceChange();
+    applyTraceChange(before);
 }
 
 // Tracing usually only changes highlighting. When the visible node set is unchanged,
 // update classes in place instead of rebuilding and re-laying out the whole canvas.
-function applyTraceChange() {
+// `before` is traceMembers() from before the change; with it, only elements traced before or
+// after are restyled. Without it, every element is.
+function applyTraceChange(before = null) {
+    const traceStarted = performance.now();
+    try {
+        traceChangeNow(before);
+    } finally {
+        state.perf.lastTraceMs = performance.now() - traceStarted;
+    }
+}
+
+function traceChangeNow(before) {
     if (state.viewMode === 'tournament' && state.renderedSignature) {
-        const { visibleKeys } = getBaseVisibleKeys();
-        if (visibleSignature(visibleKeys) === state.renderedSignature) {
-            refreshTournamentClasses();
+        const visible = getBaseVisibleKeys();
+        if (visibleSignature(visible.visibleKeys) === state.renderedSignature) {
+            let only = null;
+            if (before) {
+                const after = traceMembers();
+                only = { nodes: new Set([...before.nodes, ...after.nodes]), edges: new Set([...before.edges, ...after.edges]) };
+            }
+            refreshTournamentClasses(only, visible);
             if (state.selectedNodeKey) renderDetails(state.selectedNodeKey);
             updateViewControls();
             updateStatus();
@@ -416,7 +503,7 @@ function nodeTraceClass(nodeKey) {
     if (up && down) return 'trace-both';
     if (up) return 'trace-upstream';
     if (down) return 'trace-downstream';
-    return 'trace-dim';
+    return '';   // untraced elements are dimmed by the canvas-level .tracing class
 }
 
 function edgeTraceClass(edgeKey) {
@@ -426,6 +513,6 @@ function edgeTraceClass(edgeKey) {
     if (up && down) return 'trace-both';
     if (up) return 'trace-upstream';
     if (down) return 'trace-downstream';
-    return 'trace-dim';
+    return '';   // untraced elements are dimmed by the canvas-level .tracing class
 }
 

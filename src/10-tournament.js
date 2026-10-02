@@ -18,11 +18,16 @@ function renderGraph() {
     if (!state.loaded) return;
     const canvas = getViewCanvas(state.viewMode);
     if (!canvas) return;
+    const renderStarted = performance.now();
     if (state.viewMode === 'journey') renderMatchDay(canvas);
     else if (state.viewMode === 'performance') renderGroupPerformance(canvas);
     else if (state.viewMode === 'stats') renderStats(canvas);
     else if (state.viewMode === 'scouting') renderScouting(canvas);
     else renderTournament(canvas);
+    state.perf.renders[state.viewMode] = performance.now() - renderStarted;
+    if (state.viewMode === 'tournament') {
+        state.perf.tournamentElements = tournamentElements.nodes.size + [...tournamentElements.edges.values()].reduce((sum, list) => sum + list.length, 0);
+    }
     updateStatus();
     renderDiagnostics();
     renderMyTeamsBar();
@@ -36,6 +41,9 @@ function renderTournament(canvas) {
     const compact = state.tournamentDensity === 'compact';
     state.renderedKeys = visibleKeys;
     canvas.classList.toggle('compact', compact);
+    canvas.classList.toggle('tracing', Boolean(state.traceNodeKey));
+    tournamentElements.nodes.clear();
+    tournamentElements.edges.clear();
     if (!visibleNodes.some(node => node.kind === 'match')) {
         state.renderedSignature = null;
         canvas.style.width = '100%';
@@ -69,7 +77,10 @@ function renderTournament(canvas) {
     for (const edge of visibleEdges) drawEdge(svg, layout.positions.get(edge.from), layout.positions.get(edge.to), edge, ctx);
     for (const node of visibleNodes) {
         const position = layout.positions.get(node.key);
-        if (position) canvas.appendChild(renderNodeElement(node, position, ctx));
+        if (!position) continue;
+        const element = renderNodeElement(node, position, ctx);
+        tournamentElements.nodes.set(node.key, element);
+        canvas.appendChild(element);
     }
     const detailKey = state.selectedNodeKey && visibleKeys.has(state.selectedNodeKey)
         ? state.selectedNodeKey
@@ -141,21 +152,30 @@ function edgeClassNames(edge, ctx) {
 }
 
 // In-place class refresh used when a trace click does not change which nodes are visible.
-function refreshTournamentClasses() {
+// Rendered elements by key, rebuilt on every full Tournament render.
+const tournamentElements = { nodes: new Map(), edges: new Map() };
+
+// Restyles nodes and edges in place. `only` limits it to the given keys (a trace change);
+// `visible` reuses getBaseVisibleKeys() when the caller already has it.
+function refreshTournamentClasses(only = null, visible = null) {
     const canvas = getViewCanvas('tournament');
     if (!canvas) return;
-    const { groupCoreKeys, contextKeys } = getBaseVisibleKeys();
+    canvas.classList.toggle('tracing', Boolean(state.traceNodeKey));
+    const { groupCoreKeys, contextKeys } = visible || getBaseVisibleKeys();
     const ctx = { groupCoreKeys, contextKeys, compact: state.tournamentDensity === 'compact' };
-    canvas.querySelectorAll('[data-node-key]').forEach(element => {
-        const node = state.nodes.get(element.dataset.nodeKey);
-        if (node) element.className = nodeClassName(node, ctx);
-    });
-    canvas.querySelectorAll('[data-edge-key]').forEach(element => {
-        const edge = state.edgeByKey.get(element.getAttribute('data-edge-key'));
-        if (!edge) return;
+    for (const key of only ? only.nodes : tournamentElements.nodes.keys()) {
+        const element = tournamentElements.nodes.get(key);
+        const node = state.nodes.get(key);
+        if (element && node) element.className = nodeClassName(node, ctx);
+    }
+    for (const key of only ? only.edges : tournamentElements.edges.keys()) {
+        const edge = state.edgeByKey.get(key);
+        if (!edge) continue;
         const classes = edgeClassNames(edge, ctx);
-        element.setAttribute('class', element.tagName.toLowerCase() === 'text' ? classes.label : classes.path);
-    });
+        for (const element of tournamentElements.edges.get(key) || []) {
+            element.setAttribute('class', element.tagName.toLowerCase() === 'text' ? classes.label : classes.path);
+        }
+    }
 }
 
 function layoutMetrics() {
@@ -305,6 +325,8 @@ function drawEdge(svg, from, to, edge, ctx) {
     path.setAttribute('class', classes.path);
     path.setAttribute('data-edge-key', edge.key);
     svg.appendChild(path);
+    const elements = [path];
+    tournamentElements.edges.set(edge.key, elements);
     if (state.showEdgeLabels && edge.kind !== 'aggregation' && edge.kind !== 'membership') {
         const text = document.createElementNS(SVG_NS, 'text');
         text.setAttribute('x', String(mid + 4));
@@ -313,6 +335,7 @@ function drawEdge(svg, from, to, edge, ctx) {
         text.setAttribute('data-edge-key', edge.key);
         text.textContent = edge.condition === 'FEEDS' ? 'next' : edge.condition;
         svg.appendChild(text);
+        elements.push(text);
     }
 }
 
@@ -434,15 +457,14 @@ function updateStatus() {
         parts.push(group, `${shown} of ${total} matches`);
         if (state.traceNodeKey) parts.push(`tracing ${state.traceNodeKey}`);
     }
+    if (state.pendingPoolSheets.size) parts.push(`loading ${state.pendingPoolSheets.size} earlier pools`);
     parts.push(state.lastUpdatedTimestamp ? `AES updated ${formatDateTime(state.lastUpdatedTimestamp)}` : `loaded ${formatDateTime(state.lastLoadedAt)}`);
     const prefix = state.loadError ? `Last refresh failed (${state.loadError}). ` : '';
-    setStatus(prefix + parts.filter(Boolean).join(' \u00b7 '), state.loadError || state.poolSheetFailures.length ? 'error' : '');
-    const notes = state.unresolved.length + state.outcomeConflicts.length + state.poolSheetFailures.length;
-    const button = $('[data-action="toggle-diagnostics"]');
-    if (button) {
-        button.textContent = notes ? `Details (${notes})` : 'Details';
-        button.classList.toggle('warn', notes > 0);
-    }
+    const failures = state.poolSheetFailures.length;
+    const banner = state.loadError
+        ? `Refresh failed (${state.loadError}). Showing data loaded ${formatDateTime(state.lastLoadedAt)}.`
+        : (failures ? `${failures} pool sheet${failures === 1 ? '' : 's'} could not be loaded. Open Details for the list.` : '');
+    setStatus(prefix + parts.filter(Boolean).join(' \u00b7 '), state.loadError || failures ? 'error' : '', { banner, summary: true });
 }
 
 function scrollFocusIntoView() {

@@ -194,7 +194,7 @@ const check = (name, ok, extra = '') => { results.push({ name, ok }); console.lo
     await sleep(200);
     failFetch = false;
     check('failed refresh keeps graph (bug 3)', doc.querySelectorAll('#aes-bracket-viewer [data-node-key]').length === nodeCount && nodeCount > 0);
-    check('failed refresh reports error', /Refresh failed/.test(status()) && $('.abv-status').classList.contains('error'), status());
+    check('failed refresh reports error', /Refresh failed/.test(status()) && $('.abv-status').classList.contains('error') && !$('[data-role="banner"]').hidden, status());
 
     // Hash state.
     change($('[data-action="team"]'), '1');

@@ -21,13 +21,23 @@ function weekendLabel(dates) {
 
 // League events span several weekends. Consecutive playdays form one weekend.
 function eventWeekends() {
+    return groupWeekends(state.dailyPlays.map(day => day.date));
+}
+
+function groupWeekends(dates) {
     const groups = [];
-    for (const date of [...new Set(state.dailyPlays.map(day => day.date))].sort()) {
+    for (const date of [...new Set(dates)].sort()) {
         const last = groups.at(-1);
         if (last && dateUtc(date) - dateUtc(last.at(-1)) <= 86400000) last.push(date);
         else groups.push([date]);
     }
     return groups.map(dates => ({ key: dates[0], dates, label: weekendLabel(dates) }));
+}
+
+// First date of the weekend that contains `today`, else the next weekend, else the last one.
+function focusWeekendStart(dates, today) {
+    const weekends = groupWeekends(dates);
+    return (weekends.find(weekend => weekend.dates.at(-1) >= today) || weekends.at(-1))?.dates[0] || null;
 }
 
 function weekendByDate() {

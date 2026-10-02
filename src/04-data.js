@@ -16,6 +16,7 @@ function ensureContext() {
 }
 
 async function api(path = '') {
+    state.perf.requests += 1;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), DEFAULTS.fetchTimeoutMs);
     try {
@@ -76,8 +77,16 @@ function restoreData(snapshot) {
     Object.assign(state, snapshot);
 }
 
-async function loadData({ full = true } = {}) {
-    if (state.loading || !state.eventKey) return;
+// full: re-download sheets already in memory from this visit. useSaved: allow saved copies of
+// finished pools from earlier visits (the Refresh button turns this off). force: start even if
+// another load is running; the older load is abandoned (used when the division or event changes).
+let loadSequence = 0;
+async function loadData({ full = true, useSaved = true, force = false } = {}) {
+    if ((state.loading && !force) || !state.eventKey) return;
+    const token = ++loadSequence;
+    const superseded = () => token !== loadSequence;
+    const startedAt = performance.now();
+    const requestsAtStart = state.perf.requests;
     state.loading = true;
     setRefreshDisabled(true);
     const hadData = state.loaded;
@@ -121,19 +130,29 @@ async function loadData({ full = true } = {}) {
         const poolSheetFailures = [];
         const toFetch = [];
         let reused = 0;
+        let fromSaved = 0;
+        const settledEarlier = (sheet, date) => Boolean(sheet) && date < today && poolSheetSettled(sheet);
+        const saved = useSaved
+            ? await readSavedSheets(state.eventKey, [...poolPlays].filter(([, date]) => date < today).map(([playId]) => playId))
+            : new Map();
         for (const [playId, date] of poolPlays) {
-            const cached = sameDivision ? state.poolSheets.get(playId) : null;
-            if (!full && cached && date < today && poolSheetSettled(cached)) {
-                poolSheets.set(playId, cached);
+            const inMemory = sameDivision ? state.poolSheets.get(playId) : null;
+            if (!full && settledEarlier(inMemory, date)) {
+                poolSheets.set(playId, inMemory);
                 reused += 1;
+            } else if (settledEarlier(saved.get(playId), date)) {
+                poolSheets.set(playId, saved.get(playId));
+                fromSaved += 1;
             } else {
                 toFetch.push(playId);
             }
         }
-        if (!hadData) setStatus(`Loading ${toFetch.length} pool sheets`);
-        await mapLimit(toFetch, DEFAULTS.poolSheetConcurrency, async playId => {
+        const downloaded = new Map();
+        const download = ids => mapLimit(ids, DEFAULTS.poolSheetConcurrency, async playId => {
             try {
-                poolSheets.set(playId, await api(`/poolsheet/${playId}`));
+                const sheet = await api(`/poolsheet/${playId}`);
+                poolSheets.set(playId, sheet);
+                downloaded.set(playId, sheet);
             } catch (error) {
                 const cached = sameDivision ? state.poolSheets.get(playId) : null;
                 if (cached) poolSheets.set(playId, cached);
@@ -141,35 +160,59 @@ async function loadData({ full = true } = {}) {
             }
         });
 
+        // First load: download the current (or next) weekend first and show it, then fill in
+        // earlier weekends in the background. Later loads already hold earlier weekends.
+        const focusStart = hadData ? null : focusWeekendStart(dates, today);
+        const later = focusStart ? toFetch.filter(playId => poolPlays.get(playId) < focusStart) : [];
+        const laterIds = new Set(later);
+        const first = toFetch.filter(playId => !laterIds.has(playId));
+        if (!hadData) setStatus(`Loading ${first.length} pool sheets`);
+        await download(first);
+        if (superseded()) return;
+
         const previousSchedule = hadData && sameDivision ? snapshotTeamSchedule() : null;
-        const snapshot = captureData();
-        try {
-            Object.assign(state, {
-                event,
-                divisionId,
-                divisionName,
-                detectedTimeZone: detectEventTimeZone(event),
-                playdays: playdays || [],
-                masterPlays: master?.Plays || [],
-                dailyPlays,
-                poolSheets,
-                poolSheetFailures,
-                poolSheetsReused: reused,
-                lastUpdatedTimestamp: timestamp?.LastUpdatedTimestamp || state.lastUpdatedTimestamp,
-                lastLoadedAt: Date.now()
-            });
-            clearTimeCaches();
-            buildGraphModel();
-        } catch (error) {
-            restoreData(snapshot);
-            clearTimeCaches();
-            throw error;
-        }
-        state.loaded = true;
-        state.loadError = null;
+        const commit = pending => commitModel({
+            event,
+            divisionId,
+            divisionName,
+            detectedTimeZone: detectEventTimeZone(event),
+            playdays: playdays || [],
+            masterPlays: master?.Plays || [],
+            dailyPlays,
+            poolSheets: new Map(poolSheets),
+            poolSheetFailures: [...poolSheetFailures],
+            poolSheetsReused: reused,
+            poolSheetsFromSaved: fromSaved,
+            pendingPoolSheets: pending,
+            lastUpdatedTimestamp: timestamp?.LastUpdatedTimestamp || state.lastUpdatedTimestamp,
+            lastLoadedAt: Date.now(),
+            lastSyncedAt: Date.now()
+        });
+        commit(laterIds);
         afterModelBuilt(hadData);
+        const firstViewMs = performance.now() - startedAt;
+
+        if (later.length) {
+            await download(later);
+            if (superseded()) return;
+            commit(new Set());
+            afterModelBuilt(true);
+        }
+
+        // Keep copies of newly downloaded pools that are finished and from an earlier day.
+        saveSheets(state.eventKey, new Map([...downloaded].filter(([playId, sheet]) => settledEarlier(sheet, poolPlays.get(playId)))));
+        state.perf.load = {
+            firstViewMs,
+            totalMs: performance.now() - startedAt,
+            requests: state.perf.requests - requestsAtStart,
+            downloaded: downloaded.size,
+            fromSaved,
+            background: later.length
+        };
+        renderDiagnostics();
         if (previousSchedule) notifyScheduleChanges(previousSchedule);
     } catch (error) {
+        if (superseded()) return;
         console.error('[AES Bracket Viewer]', error);
         state.loadError = error.message || String(error);
         if (!state.loaded) {
@@ -180,9 +223,31 @@ async function loadData({ full = true } = {}) {
             setStatus(`Refresh failed (${state.loadError}). Showing data loaded ${formatDateTime(state.lastLoadedAt)}.`, 'error');
         }
     } finally {
-        state.loading = false;
-        setRefreshDisabled(false);
+        if (!superseded()) {
+            state.loading = false;
+            setRefreshDisabled(false);
+            renderStatusChip();
+        }
     }
+}
+
+// Replaces the live model with a new one built from `fields`, or leaves the old model untouched
+// if the build throws.
+function commitModel(fields) {
+    const snapshot = captureData();
+    try {
+        Object.assign(state, fields);
+        clearTimeCaches();
+        const buildStarted = performance.now();
+        buildGraphModel();
+        state.perf.buildMs = performance.now() - buildStarted;
+    } catch (error) {
+        restoreData(snapshot);
+        clearTimeCaches();
+        throw error;
+    }
+    state.loaded = true;
+    state.loadError = null;
 }
 
 function afterModelBuilt(hadData) {
@@ -218,9 +283,15 @@ async function refreshIfChanged() {
         if (!latest) return false;
         if (!state.lastUpdatedTimestamp) {
             state.lastUpdatedTimestamp = latest;
+            state.lastSyncedAt = Date.now();
+            renderStatusChip();
             return false;
         }
-        if (latest === state.lastUpdatedTimestamp) return false;
+        if (latest === state.lastUpdatedTimestamp) {
+            state.lastSyncedAt = Date.now();
+            renderStatusChip();
+            return false;
+        }
         await loadData({ full: false });
         return true;
     } catch (error) {
@@ -247,7 +318,7 @@ function schedulerTick() {
     }
     if (isOpen() && key !== state.eventKey && !state.loading) {
         ensureContext();
-        loadData({ full: true });
+        loadData({ full: true, force: true });
         return;
     }
     if (isOpen() && now - state.lastCountdownAt >= 30000) {

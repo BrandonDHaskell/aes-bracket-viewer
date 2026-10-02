@@ -34,6 +34,9 @@ function matchSetEntries(match) {
     for (const key of ['Sets', 'SetScores', 'Scores', 'Games', 'Results']) {
         if (Array.isArray(match?.[key])) entries.push(...match[key]);
     }
+    // Numbered fields (Set1, Set2, ...) are only a fallback for payloads without a set array;
+    // reading both would count the same sets twice.
+    if (entries.length) return entries;
     for (let i = 1; i <= 5; i += 1) {
         const first = firstNumericField(match, [`FirstTeamSet${i}Score`, `Set${i}FirstTeamScore`, `Team1Set${i}`, `Set${i}Team1`]);
         const second = firstNumericField(match, [`SecondTeamSet${i}Score`, `Set${i}SecondTeamScore`, `Team2Set${i}`, `Set${i}Team2`]);
@@ -42,11 +45,28 @@ function matchSetEntries(match) {
     return entries;
 }
 
+// Played sets of a match, parsed once per match object and reused by every view.
 // AES publishes unplayed sets as 0-0 placeholders; those are not results.
+const playedSetsCache = new WeakMap();
+function playedSets(match) {
+    if (!match || typeof match !== 'object') return [];
+    let played = playedSetsCache.get(match);
+    if (!played) {
+        const entries = matchSetEntries(match);
+        played = [];
+        entries.forEach((entry, index) => {
+            const score = parseSetScore(entry);
+            if (!score || score.first < 0 || score.second < 0 || (score.first === 0 && score.second === 0)) return;
+            const flag = entry && typeof entry === 'object' && 'IsDecidingSet' in entry ? normalizeBoolean(entry.IsDecidingSet) : null;
+            played.push({ index, first: score.first, second: score.second, deciding: flag ?? (entries.length >= 3 && index === entries.length - 1) });
+        });
+        playedSetsCache.set(match, played);
+    }
+    return played;
+}
+
 function extractSetScores(match) {
-    return matchSetEntries(match)
-        .map(parseSetScore)
-        .filter(score => score && score.first >= 0 && score.second >= 0 && (score.first > 0 || score.second > 0));
+    return playedSets(match).map(set => ({ first: set.first, second: set.second }));
 }
 
 function formatMatchSetScores(match) {
@@ -56,20 +76,12 @@ function formatMatchSetScores(match) {
 
 // Set scores from one team's side, with AES's deciding-set flag. Unplayed 0-0 slots are skipped.
 function teamSetScores(match, side) {
-    const entries = matchSetEntries(match);
-    const scores = [];
-    entries.forEach((entry, index) => {
-        const score = parseSetScore(entry);
-        if (!score || score.first < 0 || score.second < 0 || (score.first === 0 && score.second === 0)) return;
-        const flag = entry && typeof entry === 'object' && 'IsDecidingSet' in entry ? normalizeBoolean(entry.IsDecidingSet) : null;
-        scores.push({
-            index,
-            mine: side === 'second' ? score.second : score.first,
-            theirs: side === 'second' ? score.first : score.second,
-            deciding: flag ?? (entries.length >= 3 && index === entries.length - 1)
-        });
-    });
-    return scores;
+    return playedSets(match).map(set => ({
+        index: set.index,
+        mine: side === 'second' ? set.second : set.first,
+        theirs: side === 'second' ? set.first : set.second,
+        deciding: set.deciding
+    }));
 }
 
 function formatTeamSetScores(sets) {

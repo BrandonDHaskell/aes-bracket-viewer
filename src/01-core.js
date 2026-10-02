@@ -36,6 +36,8 @@
         showEdgeLabels: true,
         showFuturePath: true,
         notify: false,
+        toolsOpen: false,             // Tournament options toolbar expanded
+        detailCollapsed: false,       // wide screens: Tournament detail panel hidden
         warmupMinutes: 45
     };
 
@@ -54,8 +56,11 @@
             poolSheets: new Map(),
             poolSheetFailures: [],
             poolSheetsReused: 0,
+            poolSheetsFromSaved: 0,
+            pendingPoolSheets: new Set(),
             lastUpdatedTimestamp: null,
             lastLoadedAt: null,
+            lastSyncedAt: null,           // last time AES confirmed the data is current (load or unchanged check)
             nodes: new Map(),
             edges: [],
             edgeByKey: new Map(),
@@ -124,6 +129,11 @@
         showFuturePath: true,
         tournamentDensity: 'compact',
         showSettings: false,
+        statusKind: 'loading',
+        statusNotice: '',
+        bannerText: '',
+        dismissedBanner: '',
+        compact: false,
         showDiagnostics: false,
         hashState: null,
         hashApplied: false,
@@ -131,6 +141,7 @@
         likelyOpponents: { ids: new Set(), names: new Set() },
         lateCourtNodes: new Set(),
         notice: '',
+        perf: { requests: 0, load: null, buildMs: null, renders: {}, tournamentElements: 0, lastTraceMs: null },
         schedulerTimer: null,
         lastCheckAt: 0,
         lastCountdownAt: 0,
@@ -211,13 +222,20 @@
         return Number.isFinite(number) ? number : null;
     }
 
+    // Lowercase key maps for the case-insensitive fallback, built once per object (AES payload
+    // objects are never modified after loading).
+    const lowerKeyCache = new WeakMap();
     function firstNumericField(object, names) {
         if (!object || typeof object !== 'object') return null;
         for (const name of names) {
             const value = numericValue(object[name]);
             if (value != null) return value;
         }
-        const lower = new Map(Object.keys(object).map(key => [key.toLowerCase(), key]));
+        let lower = lowerKeyCache.get(object);
+        if (!lower) {
+            lower = new Map(Object.keys(object).map(key => [key.toLowerCase(), key]));
+            lowerKeyCache.set(object, lower);
+        }
         for (const name of names) {
             const key = lower.get(name.toLowerCase());
             if (!key) continue;

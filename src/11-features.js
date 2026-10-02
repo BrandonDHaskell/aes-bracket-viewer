@@ -479,6 +479,8 @@ function init() {
     createViewer();
     document.addEventListener('keydown', event => {
         if (event.key === 'Escape' && isOpen()) {
+            // An open Tournament toolbar handles its own Escape (see onAppKeydown).
+            if (state.prefs.toolsOpen && event.target instanceof Element && event.target.closest('[data-role="graph-tools"]')) return;
             event.stopPropagation();
             closeViewer();
         }
