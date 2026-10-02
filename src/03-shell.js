@@ -68,6 +68,8 @@ function setCompact(compact) {
     const app = document.getElementById(APP_ID);
     if (!app) return;
     app.classList.toggle('abv-compact', compact);
+    if (!compact) state.sheetOpen = false;
+    app.querySelector('[data-panel="tournament"]')?.classList.toggle('sheet-open', compact && state.sheetOpen);
     renderStatusChip();
     // One set of view buttons: bottom navigation on phones, beside the status chip otherwise.
     const tabs = app.querySelector('[data-role="view-tabs"]');
@@ -110,7 +112,7 @@ function createViewer() {
                         <div class="${mode === 'tournament' ? 'abv-canvas' : 'abv-list-canvas'}" data-canvas="${mode}"></div>
                     </div>${mode === 'tournament' ? graphTools : ''}
                 </div>
-                <aside class="abv-detail" data-detail="${mode}"><h3>${heading}</h3><p class="abv-muted">${text}</p></aside>
+                <aside class="abv-detail">${mode === 'tournament' ? '<button type="button" class="abv-sheet-close" data-action="close-sheet" aria-label="Close details">Close</button>' : ''}<div data-detail="${mode}"><h3>${heading}</h3><p class="abv-muted">${text}</p></div></aside>
             </section>`;
     app.innerHTML = `
             <div class="abv-header">
@@ -196,7 +198,7 @@ function onAppClick(event) {
     }
     const node = target.closest('[data-node-key]');
     if (node) {
-        selectNode(node.dataset.nodeKey);
+        openSheetForNode(node.dataset.nodeKey);
         return;
     }
     const pool = target.closest('[data-perf-pool]');
@@ -221,15 +223,29 @@ function onAppKeydown(event) {
     if (!(target instanceof Element)) return;
     if (target.matches('[data-node-key]')) {
         event.preventDefault();
-        selectNode(target.dataset.nodeKey);
+        openSheetForNode(target.dataset.nodeKey);
     } else if (target.matches('[data-perf-pool]')) {
         event.preventDefault();
         selectPerformancePool(state.performancePools.get(target.dataset.perfPool));
     }
 }
 
+// On phones the Tournament detail panel is a bottom sheet that opens when a node is tapped.
+function openSheetForNode(nodeKey) {
+    if (state.compact && state.viewMode === 'tournament') state.sheetOpen = true;
+    selectNode(nodeKey);
+}
+
+function closeSheet() {
+    if (!state.sheetOpen) return false;
+    state.sheetOpen = false;
+    updateViewControls();
+    return true;
+}
+
 function handleAction(action, element = null) {
     switch (action) {
+        case 'close-sheet': closeSheet(); break;
         case 'close': closeViewer(); break;
         case 'clear-trace': clearTrace(); break;
         case 'open-division':
@@ -376,6 +392,7 @@ const getViewDetail = (mode = state.viewMode) => $(`[data-detail="${mode}"]`);
 function setViewMode(mode) {
     if (!VIEWS.includes(mode)) return;
     state.viewMode = mode;
+    state.sheetOpen = false;
     if (mode === 'tournament') state.pendingFocusScroll = true;
     clearTrace(false);
     renderGraph();
@@ -394,7 +411,10 @@ function updateViewControls() {
     const set = (selector, apply) => { const element = $(selector); if (element) apply(element); };
     set('[data-action="clear-trace"]', el => { el.hidden = !state.traceNodeKey; });
     set('[data-role="graph-tools"]', el => { el.classList.toggle('tools-open', Boolean(state.prefs.toolsOpen)); });
-    set('[data-panel="tournament"]', el => { el.classList.toggle('detail-collapsed', Boolean(state.prefs.detailCollapsed)); });
+    set('[data-panel="tournament"]', el => {
+        el.classList.toggle('detail-collapsed', Boolean(state.prefs.detailCollapsed));
+        el.classList.toggle('sheet-open', state.compact && state.sheetOpen);
+    });
     set('[data-action="toggle-detail"]', el => {
         el.setAttribute('aria-expanded', String(!state.prefs.detailCollapsed));
         el.textContent = state.prefs.detailCollapsed ? 'Show details' : 'Hide details';

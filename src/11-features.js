@@ -482,7 +482,8 @@ function init() {
             // An open Tournament toolbar handles its own Escape (see onAppKeydown).
             if (state.prefs.toolsOpen && event.target instanceof Element && event.target.closest('[data-role="graph-tools"]')) return;
             event.stopPropagation();
-            closeViewer();
+            // On phones Escape closes the open detail sheet before it closes the viewer.
+            if (!closeSheet()) closeViewer();
         }
     }, true);
     document.addEventListener('visibilitychange', () => {

@@ -144,6 +144,28 @@ const media = initial => w => {
     check('compact: short labels', [...nav.querySelectorAll('[data-view]')].map(b => b.textContent).join(',') === 'Map,Day,Outlook,Stats,Scout', [...nav.querySelectorAll('[data-view]')].map(b => b.textContent).join(','));
     t.click(nav.querySelector('[data-view="stats"]'));
     check('compact: bottom navigation switches views', t.q('[data-panel="stats"]') && !t.q('[data-panel="stats"]').hidden && nav.querySelector('[data-view="stats"]').getAttribute('aria-selected') === 'true' && nav.querySelector('[data-view="journey"]').getAttribute('aria-selected') === 'false');
+    // Tournament detail panel is a bottom sheet on phones: closed until a node is tapped.
+    t.click(nav.querySelector('[data-view="tournament"]'));
+    const mapPanel = t.q('[data-panel="tournament"]');
+    const escape = () => t.doc.dispatchEvent(new t.w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    check('compact: sheet is closed until a node is tapped', !mapPanel.classList.contains('sheet-open'));
+    const cardKey = 'Lg2Oct17-18XOBronze B2v2M1';
+    t.click(t.q(`[data-node-key="${cardKey}"]`));
+    check('compact: tapping a node opens the sheet with its details', mapPanel.classList.contains('sheet-open') && t.q('[data-detail="tournament"]').textContent.includes(cardKey));
+    check('compact: sheet has a close button with a name', /\S/.test(t.q('[data-action="close-sheet"]').getAttribute('aria-label') || ''));
+    escape();
+    check('compact: Escape closes the sheet first, viewer stays open', !mapPanel.classList.contains('sheet-open') && t.app.classList.contains('open'));
+    t.click(t.q(`[data-node-key="${cardKey}"]`));
+    t.click(t.q('[data-action="close-sheet"]'));
+    check('compact: close button closes the sheet', !mapPanel.classList.contains('sheet-open') && t.app.classList.contains('open'));
+    t.click(t.q(`[data-node-key="${cardKey}"]`));
+    t.click(nav.querySelector('[data-view="journey"]'));
+    t.click(nav.querySelector('[data-view="tournament"]'));
+    check('compact: switching views closes the sheet', !mapPanel.classList.contains('sheet-open'));
+    escape();
+    check('compact: Escape with no sheet closes the viewer', !t.app.classList.contains('open'));
+    t.click(t.doc.getElementById('aes-bracket-viewer-button'));
+    await sleep(100);
     const mine = t.q('[data-role="my-teams"]');
     check('compact: My teams is one row of chips', mine.querySelectorAll('.abv-chip').length >= 2 && mine.parentElement === t.app && !mine.hidden);
     check('compact: short label and chip', /^Updated \d{2}-\d{2} \d{2}:\d{2}$/.test(t.q('[data-role="updated-label"]').textContent) && /^Checked \d+s ago$/.test(t.q('[data-role="status-chip"]').textContent), `${t.q('[data-role="updated-label"]').textContent} / ${t.q('[data-role="status-chip"]').textContent}`);

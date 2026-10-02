@@ -102,6 +102,7 @@
             pendingTeamId: null,
             scoutTeamId: null,
             selectedNodeKey: null,
+            sheetOpen: false,
             defaultsApplied: false,
             pendingFocusScroll: false,
             loadError: null,
