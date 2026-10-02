@@ -436,13 +436,11 @@ function updateStatus() {
     }
     parts.push(state.lastUpdatedTimestamp ? `AES updated ${formatDateTime(state.lastUpdatedTimestamp)}` : `loaded ${formatDateTime(state.lastLoadedAt)}`);
     const prefix = state.loadError ? `Last refresh failed (${state.loadError}). ` : '';
-    setStatus(prefix + parts.filter(Boolean).join(' \u00b7 '), state.loadError || state.poolSheetFailures.length ? 'error' : '');
-    const notes = state.unresolved.length + state.outcomeConflicts.length + state.poolSheetFailures.length;
-    const button = $('[data-action="toggle-diagnostics"]');
-    if (button) {
-        button.textContent = notes ? `Details (${notes})` : 'Details';
-        button.classList.toggle('warn', notes > 0);
-    }
+    const failures = state.poolSheetFailures.length;
+    const banner = state.loadError
+        ? `Refresh failed (${state.loadError}). Showing data loaded ${formatDateTime(state.lastLoadedAt)}.`
+        : (failures ? `${failures} pool sheet${failures === 1 ? '' : 's'} could not be loaded. Open Details for the list.` : '');
+    setStatus(prefix + parts.filter(Boolean).join(' \u00b7 '), state.loadError || failures ? 'error' : '', { banner, summary: true });
 }
 
 function scrollFocusIntoView() {

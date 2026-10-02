@@ -182,6 +182,7 @@ async function loadData({ full = true } = {}) {
     } finally {
         state.loading = false;
         setRefreshDisabled(false);
+        renderStatusChip();
     }
 }
 

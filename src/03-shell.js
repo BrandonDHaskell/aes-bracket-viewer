@@ -107,18 +107,24 @@ function createViewer() {
                 <button type="button" data-action="copy-link">Copy link to this view</button>
                 <span class="abv-muted" data-role="settings-note"></span>
             </div>
-            <div class="abv-view-tabs" role="tablist">
-                <button type="button" role="tab" data-view="tournament" class="active">Tournament</button>
-                <button type="button" role="tab" data-view="journey">Match Day</button>
-                <button type="button" role="tab" data-view="performance">Standings &amp; Outlook</button>
-                <button type="button" role="tab" data-view="stats">Stats</button>
-                <button type="button" role="tab" data-view="scouting">Scouting</button>
+            <div class="abv-banner" role="alert" data-role="banner" hidden>
+                <span data-role="banner-text"></span>
+                <button type="button" class="abv-text-btn" data-action="dismiss-banner" aria-label="Dismiss message">Dismiss</button>
             </div>
-            <div class="abv-status">
-                <span class="abv-status-text" data-role="status-text">Open the viewer to load AES data.</span>
-                <button type="button" data-action="toggle-diagnostics" aria-expanded="false">Details</button>
+            <div class="abv-subbar" data-role="subbar">
+                <div class="abv-view-tabs" role="tablist">
+                    <button type="button" role="tab" data-view="tournament" class="active">Tournament</button>
+                    <button type="button" role="tab" data-view="journey">Match Day</button>
+                    <button type="button" role="tab" data-view="performance">Standings &amp; Outlook</button>
+                    <button type="button" role="tab" data-view="stats">Stats</button>
+                    <button type="button" role="tab" data-view="scouting">Scouting</button>
+                </div>
+                <button type="button" class="abv-status-chip" data-action="toggle-diagnostics" data-role="status-chip" aria-expanded="false">Loading...</button>
             </div>
-            <div class="abv-diag" data-role="diagnostics" hidden></div>
+            <div class="abv-diag" data-role="diagnostics" hidden>
+                <div class="abv-status"><span class="abv-status-text" data-role="status-text">Open the viewer to load AES data.</span></div>
+                <div data-role="diag-body"></div>
+            </div>
             <div class="abv-body">
                 ${panel('tournament', 'Tournament', 'Select a node to see how teams arrive there and where they go next.')}
                 ${panel('journey', 'Match Day', 'Select a team to see its matches and work assignments in order.')}
@@ -184,6 +190,10 @@ function handleAction(action, element = null) {
             populateSettings();
             updateViewControls();
             $('[data-action="division"]')?.focus();
+            break;
+        case 'dismiss-banner':
+            state.dismissedBanner = state.bannerText;
+            showBanner(state.bannerText);
             break;
         case 'toggle-tools':
             state.toolsOpen = !state.toolsOpen;
@@ -341,7 +351,7 @@ function updateViewControls() {
         el.classList.toggle('active', state.showSettings);
     });
     set('[data-role="diagnostics"]', el => { el.hidden = !state.showDiagnostics; });
-    set('[data-action="toggle-diagnostics"]', el => { el.setAttribute('aria-expanded', String(state.showDiagnostics)); });
+    set('[data-role="status-chip"]', el => { el.setAttribute('aria-expanded', String(state.showDiagnostics)); });
 }
 
 async function openViewer() {
@@ -354,6 +364,8 @@ async function openViewer() {
         if (!VIEWS.includes(hashView) && window.matchMedia?.(MOBILE_QUERY).matches) state.viewMode = 'journey';
     }
     updateViewControls();
+    clearInterval(state.chipTimer);
+    state.chipTimer = setInterval(renderStatusChip, 30000);
     state.lastCheckAt = Date.now();
     if (!state.loaded && !state.loading) {
         await loadData({ full: true });
@@ -365,6 +377,7 @@ async function openViewer() {
 
 function closeViewer() {
     document.getElementById(APP_ID)?.classList.remove('open');
+    clearInterval(state.chipTimer);
     clearHashState();
 }
 
@@ -385,13 +398,57 @@ function resetFilters() {
     renderGraph();
 }
 
-function setStatus(text, tone = '') {
+// `summary` marks the routine one-line status from updateStatus; anything else is a
+// progress or one-off message that the chip shows only while it applies.
+function setStatus(text, tone = '', { banner, summary = false } = {}) {
     const bar = $('.abv-status');
     const textEl = $('[data-role="status-text"]');
     if (!bar || !textEl) return;
     textEl.textContent = text;
     textEl.title = text;
     bar.classList.toggle('error', tone === 'error');
+    if (tone === 'error') showBanner(banner ?? text);
+    else if (banner === '') showBanner('');
+    state.statusKind = summary || tone === 'error' ? 'summary' : (state.loading ? 'loading' : 'notice');
+    state.statusNotice = state.statusKind === 'notice' ? text : '';
+    clearTimeout(state.noticeTimer);
+    if (state.statusKind === 'notice') state.noticeTimer = setTimeout(() => { state.statusKind = 'summary'; renderStatusChip(); }, 6000);
+    renderStatusChip();
+}
+
+function showBanner(text) {
+    const banner = $('[data-role="banner"]');
+    if (!banner) return;
+    state.bannerText = text;
+    if (!text) state.dismissedBanner = '';
+    $('[data-role="banner-text"]').textContent = text;
+    banner.hidden = !text || state.dismissedBanner === text;
+}
+
+function relativeAge(epoch) {
+    const minutes = Math.floor((Date.now() - epoch) / 60000);
+    if (!Number.isFinite(minutes)) return '';
+    if (minutes < 1) return 'just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    if (minutes < 48 * 60) return `${Math.floor(minutes / 60)}h ago`;
+    return `${Math.floor(minutes / 1440)}d ago`;
+}
+
+function renderStatusChip() {
+    const chip = $('[data-role="status-chip"]');
+    if (!chip) return;
+    const notes = state.loaded ? state.unresolved.length + state.outcomeConflicts.length + state.poolSheetFailures.length : 0;
+    let text = 'Loading...';
+    if (state.statusKind === 'notice' && state.statusNotice) text = state.statusNotice;
+    else if (!state.loaded && state.loadError && !state.loading) text = 'Not loaded';
+    else if (state.loaded && !state.loading) {
+        const epoch = parseEventTime(state.lastUpdatedTimestamp);
+        const age = relativeAge(Number.isFinite(epoch) ? epoch : state.lastLoadedAt);
+        text = age ? `Updated ${age}` : 'Updated';
+    }
+    chip.textContent = notes ? `${text} (${notes})` : text;
+    chip.title = $('[data-role="status-text"]')?.textContent || text;
+    chip.classList.toggle('warn', notes > 0);
 }
 
 function setRefreshDisabled(disabled) {
@@ -474,7 +531,7 @@ function copyViewLink() {
 }
 
 function renderDiagnostics() {
-    const panel = $('[data-role="diagnostics"]');
+    const panel = $('[data-role="diag-body"]');
     if (!panel || !state.showDiagnostics) return;
     if (!state.loaded) {
         panel.innerHTML = '<p>No AES data loaded yet.</p>';

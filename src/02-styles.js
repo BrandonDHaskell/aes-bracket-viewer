@@ -38,14 +38,18 @@ ${A} .abv-filter-control select { max-width: 260px; min-width: 140px; cursor: po
 ${A} .abv-check { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: #4d5360; user-select: none; }
 ${A} .abv-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 7px 14px; background: #fafbfc; border-bottom: 1px solid #d7dae0; }
 ${A} .abv-bar .abv-muted { font-size: 11px; }
-${A} .abv-view-tabs { display: flex; gap: 6px; padding: 8px 14px; background: #fafbfc; border-bottom: 1px solid #d7dae0; overflow-x: auto; }
+${A} .abv-view-tabs { display: flex; gap: 6px; overflow-x: auto; }
 ${A} .abv-view-tabs button { min-height: 32px; padding: 6px 12px; white-space: nowrap; }
 
-${A} .abv-status { display: flex; align-items: center; gap: 10px; padding: 5px 14px; background: #eef0f4; border-bottom: 1px solid #d7dae0; color: #505662; font-size: 12px; }
-${A} .abv-status.error { color: #8b1e1e; background: #fff0f0; }
-${A} .abv-status-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-${A} .abv-status button { min-height: 24px; padding: 3px 8px; font-size: 11px; }
-${A} .abv-status button.warn { border-color: #d6b36a; background: #fff7e8; color: #76531b; }
+${A} .abv-subbar { display: flex; align-items: center; gap: 10px; padding: 0 14px; background: #fafbfc; border-bottom: 1px solid #d7dae0; min-width: 0; }
+${A} .abv-subbar .abv-view-tabs { flex: 1 1 auto; min-width: 0; padding: 6px 0; border: 0; background: transparent; }
+${A} button.abv-status-chip { flex: 0 1 auto; min-width: 0; max-width: 45%; min-height: 28px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; color: #505662; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+${A} button.abv-status-chip.warn { border-color: #d6b36a; background: #fff7e8; color: #76531b; }
+${A} .abv-banner { display: flex; align-items: center; gap: 10px; padding: 6px 14px; background: #fff0f0; border-bottom: 1px solid #e3b9b9; color: #8b1e1e; font-size: 12px; }
+${A} .abv-banner span { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+${A} .abv-status { color: #505662; font-size: 12px; margin: 0 0 8px; }
+${A} .abv-status.error { color: #8b1e1e; }
+${A} .abv-status-text { overflow-wrap: anywhere; }
 ${A} .abv-diag { max-height: 32vh; overflow: auto; padding: 10px 14px; background: #fff; border-bottom: 1px solid #d7dae0; font-size: 11px; color: #4d5360; }
 ${A} .abv-diag dl { display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; margin: 0 0 8px; }
 ${A} .abv-diag dt { font-weight: 700; }
@@ -237,7 +241,7 @@ ${A}.abv-compact .abv-graph-tools:not(.tools-open) .abv-tools-body { display: no
     ${A} { inset: 0; border-radius: 0; border: 0; }
     ${A} .abv-header { padding: 6px 8px; gap: 4px; }
     ${A} .abv-my-teams { padding: 4px 8px; }
-    ${A} .abv-bar, ${A} .abv-view-tabs { padding: 6px 8px; }
+    ${A} .abv-bar { padding: 6px 8px; }
     ${A} .abv-view-panel { flex-direction: column; }
     ${A} .abv-detail { flex: 0 0 auto; width: 100%; max-width: none; min-width: 0; max-height: 38vh; border-left: 0; border-top: 1px solid #d7dae0; }
     ${A} .abv-view-panel:not([data-panel="tournament"]) .abv-detail { display: none; }
