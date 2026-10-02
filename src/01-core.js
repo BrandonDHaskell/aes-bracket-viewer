@@ -8,8 +8,6 @@
     // No club, team, or division is built in. "My teams" come from each coach's AES favorites
     // (see section 4b); division and view options are chosen in the viewer and saved locally.
     const DEFAULTS = {
-        freshnessCheckMs: 60000,      // viewer open and tab visible
-        backgroundCheckMs: 120000,    // viewer closed or tab hidden, notifications on
         fetchTimeoutMs: 15000,
         poolSheetConcurrency: 6,
         matchMinutes: 60,             // calendar event length when AES publishes no end time
@@ -102,6 +100,7 @@
             pendingTeamId: null,
             scoutTeamId: null,
             selectedNodeKey: null,
+            sheetOpen: false,
             defaultsApplied: false,
             pendingFocusScroll: false,
             loadError: null,
@@ -143,7 +142,9 @@
         notice: '',
         perf: { requests: 0, load: null, buildMs: null, renders: {}, tournamentElements: 0, lastTraceMs: null },
         schedulerTimer: null,
-        lastCheckAt: 0,
+        checkIntervalMs: 60000,       // current backed-off interval between update checks
+        nextCheckAt: 0,               // when the next check is due (Infinity while one runs)
+        checkInfo: null,              // context behind the last scheduled check, shown in Details
         lastCountdownAt: 0,
         ...freshDataState(),
         ...freshSelectionState()

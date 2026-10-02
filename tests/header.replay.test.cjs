@@ -4,6 +4,7 @@ const boot = require('./replay.cjs');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 // matchMedia stub whose max-width query can be flipped, so the change listener is exercised too.
 const media = initial => w => {
+    w.__ABV_TEST__ = {};
     const listeners = [];
     let narrow = initial;
     w.matchMedia = q => ({
@@ -58,11 +59,18 @@ const media = initial => w => {
     check('left label shows the AES update time', /^Last updated: \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(updated.textContent), updated.textContent);
     check('left label sits before the chip', updated.nextElementSibling === chip);
     check('label tooltip names the time zone', /America\/Los_Angeles/.test(updated.title), updated.title);
-    check('chip reads Last checked: Ns ago', /^Last checked: \d+s ago$/.test(chip.textContent), chip.textContent);
-    // The age can restart when a background load confirms the data, so look for change, not a fixed count.
-    const seen = new Set([chip.textContent]);
-    for (let i = 0; i < 3; i += 1) { await sleep(1100); seen.add(chip.textContent); }
-    check('chip ticks every second', seen.size >= 3, [...seen].join(' | '));
+    check('chip reads Last checked: Ns ago', /^Last checked: \d+s ago \u00b7 next in \d+[smh]/.test(chip.textContent), chip.textContent);
+    // Under a minute the age moves in steps of 10 s; the scheduler tick re-renders it every second.
+    const S = t.w.__ABV_TEST__.state;
+    const ageAfter = async seconds => { S.lastSyncedAt = Date.now() - seconds * 1000; await sleep(1100); return chip.textContent.match(/^Last checked: (\d+s|\d+m) ago/)?.[1]; };
+    const steps = [await ageAfter(7), await ageAfter(12), await ageAfter(19), await ageAfter(59), await ageAfter(61)];
+    check('age shows seconds in steps of 10, then minutes', steps.join() === '0s,10s,10s,50s,1m', steps.join());
+    const lastChecked = () => chip.textContent.split(' \u00b7 ')[0];
+    S.lastSyncedAt = Date.now() - 12000;
+    await sleep(1100);
+    const first = lastChecked();
+    await sleep(1100);
+    check('Last checked does not change between 10 s steps', first === 'Last checked: 10s ago' && lastChecked() === first, first);
     check('chip not in warning style when fresh', !chip.classList.contains('warn'));
     // With AES unreachable the scheduler's check fails, so the last check keeps ageing.
     const realFetch = t.w.fetch;
@@ -70,7 +78,7 @@ const media = initial => w => {
     const RealDate = t.w.Date;
     t.w.Date = class extends RealDate { static now() { return super.now() + 4 * 60000; } };
     await sleep(1100);
-    check('chip warns and shows minutes when checks are stale', chip.classList.contains('warn') && /^Last checked: 4m ago$/.test(chip.textContent), chip.textContent);
+    check('chip warns and shows minutes when checks are stale', chip.classList.contains('warn') && /^Last checked: 4m ago/.test(chip.textContent), chip.textContent);
     t.w.Date = RealDate;
     t.w.fetch = realFetch;
 
@@ -117,8 +125,20 @@ const media = initial => w => {
     await sleep(300);
     const banner = t.q('[data-role="banner"]');
     check('failed refresh shows the banner', !banner.hidden && /Refresh failed/.test(banner.textContent) && banner.getAttribute('role') === 'alert', banner.textContent.trim().slice(0, 60));
+    // Repeated renders (view switches, node selection, refresh) must not rewrite the alert text.
+    let writes = 0;
+    const observer = new t.w.MutationObserver(records => { writes += records.length; });
+    observer.observe(t.q('[data-role="banner-text"]'), { childList: true, characterData: true, subtree: true });
+    for (const view of ['journey', 'stats', 'tournament']) t.click(t.q(`[data-view="${view}"]`));
+    t.click(t.q('[data-node-key]'));
+    t.click(t.q('[data-action="refresh"]'));
+    await sleep(300);
     t.click(t.q('[data-action="dismiss-banner"]'));
     check('banner can be dismissed', banner.hidden);
+    for (const view of ['journey', 'tournament']) t.click(t.q(`[data-view="${view}"]`));
+    await sleep(50);
+    check('banner text is not rewritten by repeated renders or by hiding it', writes === 0 && banner.hidden, `${writes} writes`);
+    observer.disconnect();
 
     // Detail panel collapse.
     const panel = t.q('[data-panel="tournament"]');
@@ -144,9 +164,31 @@ const media = initial => w => {
     check('compact: short labels', [...nav.querySelectorAll('[data-view]')].map(b => b.textContent).join(',') === 'Map,Day,Outlook,Stats,Scout', [...nav.querySelectorAll('[data-view]')].map(b => b.textContent).join(','));
     t.click(nav.querySelector('[data-view="stats"]'));
     check('compact: bottom navigation switches views', t.q('[data-panel="stats"]') && !t.q('[data-panel="stats"]').hidden && nav.querySelector('[data-view="stats"]').getAttribute('aria-selected') === 'true' && nav.querySelector('[data-view="journey"]').getAttribute('aria-selected') === 'false');
+    // Tournament detail panel is a bottom sheet on phones: closed until a node is tapped.
+    t.click(nav.querySelector('[data-view="tournament"]'));
+    const mapPanel = t.q('[data-panel="tournament"]');
+    const escape = () => t.doc.dispatchEvent(new t.w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    check('compact: sheet is closed until a node is tapped', !mapPanel.classList.contains('sheet-open'));
+    const cardKey = 'Lg2Oct17-18XOBronze B2v2M1';
+    t.click(t.q(`[data-node-key="${cardKey}"]`));
+    check('compact: tapping a node opens the sheet with its details', mapPanel.classList.contains('sheet-open') && t.q('[data-detail="tournament"]').textContent.includes(cardKey));
+    check('compact: sheet has a close button with a name', /\S/.test(t.q('[data-action="close-sheet"]').getAttribute('aria-label') || ''));
+    escape();
+    check('compact: Escape closes the sheet first, viewer stays open', !mapPanel.classList.contains('sheet-open') && t.app.classList.contains('open'));
+    t.click(t.q(`[data-node-key="${cardKey}"]`));
+    t.click(t.q('[data-action="close-sheet"]'));
+    check('compact: close button closes the sheet', !mapPanel.classList.contains('sheet-open') && t.app.classList.contains('open'));
+    t.click(t.q(`[data-node-key="${cardKey}"]`));
+    t.click(nav.querySelector('[data-view="journey"]'));
+    t.click(nav.querySelector('[data-view="tournament"]'));
+    check('compact: switching views closes the sheet', !mapPanel.classList.contains('sheet-open'));
+    escape();
+    check('compact: Escape with no sheet closes the viewer', !t.app.classList.contains('open'));
+    t.click(t.doc.getElementById('aes-bracket-viewer-button'));
+    await sleep(100);
     const mine = t.q('[data-role="my-teams"]');
     check('compact: My teams is one row of chips', mine.querySelectorAll('.abv-chip').length >= 2 && mine.parentElement === t.app && !mine.hidden);
-    check('compact: short label and chip', /^Updated \d{2}-\d{2} \d{2}:\d{2}$/.test(t.q('[data-role="updated-label"]').textContent) && /^Checked \d+s ago$/.test(t.q('[data-role="status-chip"]').textContent), `${t.q('[data-role="updated-label"]').textContent} / ${t.q('[data-role="status-chip"]').textContent}`);
+    check('compact: short label and chip', /^Updated \d{2}-\d{2} \d{2}:\d{2}$/.test(t.q('[data-role="updated-label"]').textContent) && /^Checked \d+s ago \u00b7 next in/.test(t.q('[data-role="status-chip"]').textContent), `${t.q('[data-role="updated-label"]').textContent} / ${t.q('[data-role="status-chip"]').textContent}`);
     const css = t.doc.getElementById('aes-bracket-viewer-styles').textContent;
     check('compact: detail panels are hidden by the compact class', /\.abv-compact \.abv-detail[^{]*\{ display: none/.test(css) && t.q('[data-detail="tournament"]').closest('.abv-compact'));
     t.w.__setNarrow(false);

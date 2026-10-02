@@ -69,6 +69,10 @@ ${A} .abv-view-panel { min-height: 0; min-width: 0; flex: 1 1 auto; display: fle
 ${A} .abv-graph-frame, ${A} .abv-list-frame { position: relative; flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; }
 ${A} .abv-graph-tools { position: absolute; top: 8px; right: 14px; z-index: 5; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; max-width: calc(100% - 28px); }
 ${A}.abv-compact .abv-detail-toggle, ${A}.abv-compact .abv-detail { display: none; }
+${A} .abv-sheet-close { display: none; }
+${A}.abv-compact .abv-view-panel[data-panel="tournament"] { position: relative; }
+${A}.abv-compact .abv-view-panel.sheet-open .abv-detail { display: block; position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; width: auto; max-width: none; min-width: 0; max-height: 45vh; border-left: 0; border-top: 1px solid #b8bdc7; border-radius: 12px 12px 0 0; box-shadow: 0 -6px 20px rgba(0,0,0,.18); }
+${A}.abv-compact .abv-view-panel.sheet-open .abv-sheet-close { display: block; position: sticky; top: 0; float: right; margin: 0 0 4px 8px; min-height: 30px; padding: 4px 10px; z-index: 1; }
 ${A}:not(.abv-compact) .abv-view-panel.detail-collapsed .abv-detail { display: none; }
 ${A} .abv-detail-toggle, ${A} .abv-tools-toggle { box-shadow: 0 2px 8px rgba(0,0,0,.15); }
 ${A} .abv-tools-toggle { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -40,9 +40,15 @@ const earlier = Object.keys(capture.poolSheets).filter(id => dateOf.get(id) < '2
   q('[data-view="performance"]').click();
   check('Outlook is already available', /Win all 3 remaining pool matches to clinch Bronze A/.test(q('[data-canvas="performance"]').textContent));
 
+  const chipText = () => q('[data-role="status-chip"]').textContent;
+  check('chip shows the check age and the held background load', new RegExp(`^Last checked: \\d+s ago \u00b7 loading earlier weekends \\(${earlier}\\)$`).test(chipText()), chipText());
+  check('chip does not say Loading... while the fill-in runs', !/^Loading/.test(chipText()));
+
   gate();
   for (let i = 0; i < 200 && /earlier pools/.test(status()); i++) await sleep(20);
   check('background fill-in completes', !/earlier pools/.test(status()), status().slice(0, 100));
+  await sleep(1100);
+  check('chip drops the loading note when the fill-in is done', /^Last checked: \d+s ago \u00b7 next in \d+[smh]/.test(chipText()), chipText());
   q('[data-view="stats"]').click();
   const stats = [...doc.querySelectorAll('#aes-bracket-viewer [data-canvas="stats"] .abv-stat b')].slice(0, 3).map(b => b.textContent).join(' / ');
   check('full stats after fill-in: 2-8 / 5-18 / 0.789', stats === '2-8 / 5-18 / 0.789' && !/still loading/.test(q('[data-canvas="stats"]').textContent), stats);

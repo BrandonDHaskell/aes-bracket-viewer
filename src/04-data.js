@@ -226,7 +226,8 @@ async function loadData({ full = true, useSaved = true, force = false } = {}) {
         if (!superseded()) {
             state.loading = false;
             setRefreshDisabled(false);
-            renderStatusChip();
+            // A fresh load restarts the schedule; a failed one backs off like a failed check.
+            scheduleNextCheck(state.loadError ? 'failed' : 'reset');
         }
     }
 }
@@ -277,30 +278,31 @@ function afterModelBuilt(hadData) {
 
 async function refreshIfChanged() {
     if (state.loading || !state.loaded) return false;
+    state.nextCheckAt = Infinity;
+    let outcome = 'unchanged';
     try {
         const timestamp = await api('/timestamp');
         const latest = timestamp?.LastUpdatedTimestamp || null;
         if (!latest) return false;
-        if (!state.lastUpdatedTimestamp) {
-            state.lastUpdatedTimestamp = latest;
+        if (!state.lastUpdatedTimestamp || latest === state.lastUpdatedTimestamp) {
+            state.lastUpdatedTimestamp = state.lastUpdatedTimestamp || latest;
             state.lastSyncedAt = Date.now();
-            renderStatusChip();
-            return false;
-        }
-        if (latest === state.lastUpdatedTimestamp) {
-            state.lastSyncedAt = Date.now();
-            renderStatusChip();
             return false;
         }
         await loadData({ full: false });
         return true;
     } catch (error) {
         console.warn('[AES Bracket Viewer] update check failed', error);
+        outcome = 'failed';
         return false;
+    } finally {
+        // loadData schedules its own next check; every other path schedules here.
+        if (!Number.isFinite(state.nextCheckAt)) scheduleNextCheck(outcome);
+        renderStatusChip();
     }
 }
 
-// One lightweight 1-second tick handles SPA navigation, countdowns, and update checks.
+// One lightweight 1-second tick handles SPA navigation, countdowns, the status chip, and update checks.
 // Checks pause while the tab is hidden unless notifications are on.
 function startScheduler() {
     if (state.schedulerTimer) return;
@@ -321,6 +323,8 @@ function schedulerTick() {
         loadData({ full: true, force: true });
         return;
     }
+    // The status chip's ages tick once a second; the scheduler is the only timer.
+    if (isOpen() && !document.hidden) renderStatusChip();
     if (isOpen() && now - state.lastCountdownAt >= 30000) {
         state.lastCountdownAt = now;
         updateCountdowns();
@@ -328,12 +332,9 @@ function schedulerTick() {
     if (!state.loaded || state.loading) return;
     // Starring or unstarring a team on AES takes effect within a second.
     if (key === state.eventKey && aesFavoritesRaw() !== state.favoritesRaw) onFavoritesChanged();
+    // Open and visible, or in the background with notifications on: same adaptive schedule.
     const foreground = isOpen() && !document.hidden;
-    const interval = foreground ? DEFAULTS.freshnessCheckMs : (state.prefs.notify ? DEFAULTS.backgroundCheckMs : null);
-    if (interval && now - state.lastCheckAt >= interval) {
-        state.lastCheckAt = now;
-        refreshIfChanged();
-    }
+    if ((foreground || state.prefs.notify) && now >= state.nextCheckAt) refreshIfChanged();
 }
 
 function updateCountdowns() {

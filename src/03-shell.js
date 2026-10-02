@@ -68,6 +68,8 @@ function setCompact(compact) {
     const app = document.getElementById(APP_ID);
     if (!app) return;
     app.classList.toggle('abv-compact', compact);
+    if (!compact) state.sheetOpen = false;
+    app.querySelector('[data-panel="tournament"]')?.classList.toggle('sheet-open', compact && state.sheetOpen);
     renderStatusChip();
     // One set of view buttons: bottom navigation on phones, beside the status chip otherwise.
     const tabs = app.querySelector('[data-role="view-tabs"]');
@@ -110,7 +112,7 @@ function createViewer() {
                         <div class="${mode === 'tournament' ? 'abv-canvas' : 'abv-list-canvas'}" data-canvas="${mode}"></div>
                     </div>${mode === 'tournament' ? graphTools : ''}
                 </div>
-                <aside class="abv-detail" data-detail="${mode}"><h3>${heading}</h3><p class="abv-muted">${text}</p></aside>
+                <aside class="abv-detail">${mode === 'tournament' ? '<button type="button" class="abv-sheet-close" data-action="close-sheet" aria-label="Close details">Close</button>' : ''}<div data-detail="${mode}"><h3>${heading}</h3><p class="abv-muted">${text}</p></div></aside>
             </section>`;
     app.innerHTML = `
             <div class="abv-header">
@@ -196,7 +198,7 @@ function onAppClick(event) {
     }
     const node = target.closest('[data-node-key]');
     if (node) {
-        selectNode(node.dataset.nodeKey);
+        openSheetForNode(node.dataset.nodeKey);
         return;
     }
     const pool = target.closest('[data-perf-pool]');
@@ -221,15 +223,29 @@ function onAppKeydown(event) {
     if (!(target instanceof Element)) return;
     if (target.matches('[data-node-key]')) {
         event.preventDefault();
-        selectNode(target.dataset.nodeKey);
+        openSheetForNode(target.dataset.nodeKey);
     } else if (target.matches('[data-perf-pool]')) {
         event.preventDefault();
         selectPerformancePool(state.performancePools.get(target.dataset.perfPool));
     }
 }
 
+// On phones the Tournament detail panel is a bottom sheet that opens when a node is tapped.
+function openSheetForNode(nodeKey) {
+    if (state.compact && state.viewMode === 'tournament') state.sheetOpen = true;
+    selectNode(nodeKey);
+}
+
+function closeSheet() {
+    if (!state.sheetOpen) return false;
+    state.sheetOpen = false;
+    updateViewControls();
+    return true;
+}
+
 function handleAction(action, element = null) {
     switch (action) {
+        case 'close-sheet': closeSheet(); break;
         case 'close': closeViewer(); break;
         case 'clear-trace': clearTrace(); break;
         case 'open-division':
@@ -376,6 +392,7 @@ const getViewDetail = (mode = state.viewMode) => $(`[data-detail="${mode}"]`);
 function setViewMode(mode) {
     if (!VIEWS.includes(mode)) return;
     state.viewMode = mode;
+    state.sheetOpen = false;
     if (mode === 'tournament') state.pendingFocusScroll = true;
     clearTrace(false);
     renderGraph();
@@ -394,7 +411,10 @@ function updateViewControls() {
     const set = (selector, apply) => { const element = $(selector); if (element) apply(element); };
     set('[data-action="clear-trace"]', el => { el.hidden = !state.traceNodeKey; });
     set('[data-role="graph-tools"]', el => { el.classList.toggle('tools-open', Boolean(state.prefs.toolsOpen)); });
-    set('[data-panel="tournament"]', el => { el.classList.toggle('detail-collapsed', Boolean(state.prefs.detailCollapsed)); });
+    set('[data-panel="tournament"]', el => {
+        el.classList.toggle('detail-collapsed', Boolean(state.prefs.detailCollapsed));
+        el.classList.toggle('sheet-open', state.compact && state.sheetOpen);
+    });
     set('[data-action="toggle-detail"]', el => {
         el.setAttribute('aria-expanded', String(!state.prefs.detailCollapsed));
         el.textContent = state.prefs.detailCollapsed ? 'Show details' : 'Hide details';
@@ -426,9 +446,7 @@ async function openViewer() {
         if (!VIEWS.includes(hashView) && window.matchMedia?.(MOBILE_QUERY).matches) state.viewMode = 'journey';
     }
     updateViewControls();
-    clearInterval(state.chipTimer);
-    state.chipTimer = setInterval(renderStatusChip, 1000);
-    state.lastCheckAt = Date.now();
+    resetChecks();
     if (!state.loaded && !state.loading) {
         await loadData({ full: true });
     } else if (state.loaded) {
@@ -439,7 +457,6 @@ async function openViewer() {
 
 function closeViewer() {
     document.getElementById(APP_ID)?.classList.remove('open');
-    clearInterval(state.chipTimer);
     clearHashState();
 }
 
@@ -458,84 +475,6 @@ function resetFilters() {
     populateGroupFilter();
     clearTrace(false);
     renderGraph();
-}
-
-// `summary` marks the routine one-line status from updateStatus; anything else is a
-// progress or one-off message that the chip shows only while it applies.
-function setStatus(text, tone = '', { banner, summary = false } = {}) {
-    const bar = $('.abv-status');
-    const textEl = $('[data-role="status-text"]');
-    if (!bar || !textEl) return;
-    textEl.textContent = text;
-    textEl.title = text;
-    bar.classList.toggle('error', tone === 'error');
-    if (tone === 'error') showBanner(banner ?? text);
-    else if (banner === '') showBanner('');
-    state.statusKind = summary || tone === 'error' ? 'summary' : (state.loading ? 'loading' : 'notice');
-    state.statusNotice = state.statusKind === 'notice' ? text : '';
-    clearTimeout(state.noticeTimer);
-    if (state.statusKind === 'notice') state.noticeTimer = setTimeout(() => { state.statusKind = 'summary'; renderStatusChip(); }, 6000);
-    renderStatusChip();
-}
-
-function showBanner(text) {
-    const banner = $('[data-role="banner"]');
-    if (!banner) return;
-    state.bannerText = text;
-    if (!text) state.dismissedBanner = '';
-    $('[data-role="banner-text"]').textContent = text;
-    banner.hidden = !text || state.dismissedBanner === text;
-}
-
-const STALE_CHECK_MS = 180000;
-
-// Seconds under a minute, then minutes, hours, days.
-function relativeAge(epoch) {
-    const seconds = Math.floor((Date.now() - epoch) / 1000);
-    if (!Number.isFinite(seconds)) return '';
-    if (seconds < 60) return `${Math.max(0, seconds)}s ago`;
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-    if (seconds < 48 * 3600) return `${Math.floor(seconds / 3600)}h ago`;
-    return `${Math.floor(seconds / 86400)}d ago`;
-}
-
-// YYYY-MM-DD HH:mm:ss in the effective time zone; short is MM-DD HH:mm for phones.
-function formatStamp(value, short = false) {
-    const epoch = parseEventTime(value);
-    if (!Number.isFinite(epoch)) return '';
-    const parts = Object.fromEntries(cachedFormatter('parts', effectiveTimeZone()).formatToParts(new Date(epoch)).map(part => [part.type, part.value]));
-    return short
-        ? `${parts.month}-${parts.day} ${parts.hour}:${parts.minute}`
-        : `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second}`;
-}
-
-function renderStatusChip() {
-    const chip = $('[data-role="status-chip"]');
-    const label = $('[data-role="updated-label"]');
-    if (!chip) return;
-    const ready = state.loaded && !state.loading;
-    const notes = state.loaded ? state.unresolved.length + state.outcomeConflicts.length + state.poolSheetFailures.length : 0;
-    const changedAt = state.lastUpdatedTimestamp || state.lastLoadedAt;
-    const syncedAt = state.lastSyncedAt || state.lastLoadedAt;
-    if (label) {
-        const full = state.loaded ? formatStamp(changedAt) : '';
-        label.hidden = !full;
-        label.textContent = full ? (state.compact ? `Updated ${formatStamp(changedAt, true)}` : `Last updated: ${full}`) : '';
-        label.title = full ? `${state.lastUpdatedTimestamp ? 'AES data last changed' : 'AES did not report a change time. Data loaded'} ${full} (${effectiveTimeZone()}).` : '';
-    }
-    let text = 'Loading...';
-    if (state.statusKind === 'notice' && state.statusNotice) text = state.statusNotice;
-    else if (!state.loaded && state.loadError && !state.loading) text = 'Not loaded';
-    else if (ready) {
-        const age = relativeAge(syncedAt);
-        text = `${state.compact ? 'Checked' : 'Last checked:'} ${age || 'just now'}`;
-    }
-    chip.textContent = notes ? `${text} (${notes})` : text;
-    chip.title = ready
-        ? `The viewer last checked AES ${relativeAge(syncedAt) || 'just now'}. It checks every ${DEFAULTS.freshnessCheckMs / 1000}s while open. Select for details.`
-        : ($('[data-role="status-text"]')?.textContent || text);
-    const stale = ready && Date.now() - syncedAt > STALE_CHECK_MS;
-    chip.classList.toggle('warn', notes > 0 || stale);
 }
 
 function setRefreshDisabled(disabled) {
@@ -649,6 +588,13 @@ function copyDiagnostics() {
     navigator.clipboard.writeText(text).then(() => setStatus('Details copied.'), () => setStatus('Copy failed. Select the Details text instead.'));
 }
 
+function updateChecksText() {
+    const info = state.checkInfo;
+    if (!info) return 'not scheduled yet';
+    const next = Number.isFinite(state.nextCheckAt) ? `, next in ${formatDelay(Math.max(0, state.nextCheckAt - Date.now()))}` : ', checking now';
+    return `every ${formatDelay(info.intervalMs)} (${checkReasonText(info)})${next}${state.prefs.notify ? '; also while the tab is in the background' : ''}`;
+}
+
 function renderDiagnostics() {
     const panel = $('[data-role="diag-body"]');
     if (!panel || !state.showDiagnostics) return;
@@ -673,7 +619,7 @@ function renderDiagnostics() {
         ['AES data last changed', formatDateTime(state.lastUpdatedTimestamp) || 'unknown'],
         ['Last checked', formatDateTime(state.lastSyncedAt)],
         ['Last loaded', formatDateTime(state.lastLoadedAt)],
-        ['Update checks', `every ${DEFAULTS.freshnessCheckMs / 1000}s while open${state.prefs.notify ? `, every ${DEFAULTS.backgroundCheckMs / 60000} min in the background` : ''}`]
+        ['Update checks', updateChecksText()]
     ];
     const perfRows = performanceRows();
     const list = (title, items, describe) => items.length
