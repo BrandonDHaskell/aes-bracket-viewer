@@ -10,7 +10,7 @@ const suites = [
     ['tests/extra.test.cjs'],
     ['tests/refresh.test.cjs'],
     ['tests/favorites.test.cjs'],
-    ...['phase1', 'phase2', 'phase3', 'phase4'].map(name => [`tests/${name}.replay.test.cjs`, capture, 'replay'])
+    ...['phase1', 'phase2', 'phase3', 'phase4', 'header'].map(name => [`tests/${name}.replay.test.cjs`, capture, 'replay'])
 ];
 let failed = 0;
 for (const [file, arg, kind] of suites) {
