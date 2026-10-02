@@ -300,7 +300,7 @@ async function refreshIfChanged() {
     }
 }
 
-// One lightweight 1-second tick handles SPA navigation, countdowns, and update checks.
+// One lightweight 1-second tick handles SPA navigation, countdowns, the status chip, and update checks.
 // Checks pause while the tab is hidden unless notifications are on.
 function startScheduler() {
     if (state.schedulerTimer) return;
@@ -321,6 +321,8 @@ function schedulerTick() {
         loadData({ full: true, force: true });
         return;
     }
+    // The status chip's ages tick once a second; the scheduler is the only timer.
+    if (isOpen() && !document.hidden) renderStatusChip();
     if (isOpen() && now - state.lastCountdownAt >= 30000) {
         state.lastCountdownAt = now;
         updateCountdowns();

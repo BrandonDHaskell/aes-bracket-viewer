@@ -446,8 +446,6 @@ async function openViewer() {
         if (!VIEWS.includes(hashView) && window.matchMedia?.(MOBILE_QUERY).matches) state.viewMode = 'journey';
     }
     updateViewControls();
-    clearInterval(state.chipTimer);
-    state.chipTimer = setInterval(renderStatusChip, 1000);
     state.lastCheckAt = Date.now();
     if (!state.loaded && !state.loading) {
         await loadData({ full: true });
@@ -459,7 +457,6 @@ async function openViewer() {
 
 function closeViewer() {
     document.getElementById(APP_ID)?.classList.remove('open');
-    clearInterval(state.chipTimer);
     clearHashState();
 }
 
