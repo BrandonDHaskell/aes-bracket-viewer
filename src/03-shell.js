@@ -43,7 +43,21 @@ const iconButton = (action, label, icon, extra = '') => `<button type="button" c
 
 function setCompact(compact) {
     state.compact = compact;
-    document.getElementById(APP_ID)?.classList.toggle('abv-compact', compact);
+    const app = document.getElementById(APP_ID);
+    if (!app) return;
+    app.classList.toggle('abv-compact', compact);
+    // One set of view buttons: bottom navigation on phones, beside the status chip otherwise.
+    const tabs = app.querySelector('[data-role="view-tabs"]');
+    const bottom = app.querySelector('[data-role="bottom-nav"]');
+    const subbar = app.querySelector('[data-role="subbar"]');
+    if (!tabs || !bottom || !subbar) return;
+    if (compact) bottom.appendChild(tabs);
+    else subbar.prepend(tabs);
+    bottom.hidden = !compact;
+    tabs.querySelectorAll('[data-short]').forEach(button => {
+        button.dataset.long ??= button.textContent;
+        button.textContent = compact ? button.dataset.short : button.dataset.long;
+    });
 }
 
 function createViewer() {
@@ -112,12 +126,12 @@ function createViewer() {
                 <button type="button" class="abv-text-btn" data-action="dismiss-banner" aria-label="Dismiss message">Dismiss</button>
             </div>
             <div class="abv-subbar" data-role="subbar">
-                <div class="abv-view-tabs" role="tablist">
-                    <button type="button" role="tab" data-view="tournament" class="active">Tournament</button>
-                    <button type="button" role="tab" data-view="journey">Match Day</button>
-                    <button type="button" role="tab" data-view="performance">Standings &amp; Outlook</button>
-                    <button type="button" role="tab" data-view="stats">Stats</button>
-                    <button type="button" role="tab" data-view="scouting">Scouting</button>
+                <div class="abv-view-tabs" role="tablist" aria-label="Views" data-role="view-tabs">
+                    <button type="button" role="tab" data-short="Map" data-view="tournament" class="active">Tournament</button>
+                    <button type="button" role="tab" data-short="Day" data-view="journey">Match Day</button>
+                    <button type="button" role="tab" data-short="Outlook" data-view="performance">Standings &amp; Outlook</button>
+                    <button type="button" role="tab" data-short="Stats" data-view="stats">Stats</button>
+                    <button type="button" role="tab" data-short="Scout" data-view="scouting">Scouting</button>
                 </div>
                 <button type="button" class="abv-status-chip" data-action="toggle-diagnostics" data-role="status-chip" aria-expanded="false">Loading...</button>
             </div>
@@ -131,7 +145,8 @@ function createViewer() {
                 ${panel('performance', 'Standings &amp; Outlook', 'Select a team to compare it with the other teams in its pool.')}
                 ${panel('stats', 'Stats', 'Select a team to see its results and patterns.')}
                 ${panel('scouting', 'Scouting', 'Pick an opponent to see its results and how it compares with your team.')}
-            </div>`;
+            </div>
+            <div class="abv-bottomnav" data-role="bottom-nav" hidden></div>`;
     app.addEventListener('click', onAppClick);
     app.addEventListener('change', onAppChange);
     app.addEventListener('keydown', onAppKeydown);

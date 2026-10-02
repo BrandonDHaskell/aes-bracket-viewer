@@ -40,6 +40,12 @@ ${A} .abv-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; 
 ${A} .abv-bar .abv-muted { font-size: 11px; }
 ${A} .abv-view-tabs { display: flex; gap: 6px; overflow-x: auto; }
 ${A} .abv-view-tabs button { min-height: 32px; padding: 6px 12px; white-space: nowrap; }
+${A} .abv-bottomnav { flex: none; background: #fff; border-top: 1px solid #d7dae0; padding-bottom: env(safe-area-inset-bottom, 0px); }
+${A}.abv-compact .abv-bottomnav .abv-view-tabs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; overflow: visible; }
+${A}.abv-compact .abv-bottomnav .abv-view-tabs button { min-height: 52px; padding: 6px 2px; border: 0; border-radius: 0; background: #fff; font-size: 12px; }
+${A}.abv-compact .abv-bottomnav .abv-view-tabs button.active { background: #342b55; color: #fff; }
+${A}.abv-compact .abv-subbar { padding: 0 8px; justify-content: flex-end; min-height: 30px; }
+${A}.abv-compact button.abv-status-chip { max-width: 100%; }
 
 ${A} .abv-subbar { display: flex; align-items: center; gap: 10px; padding: 0 14px; background: #fafbfc; border-bottom: 1px solid #d7dae0; min-width: 0; }
 ${A} .abv-subbar .abv-view-tabs { flex: 1 1 auto; min-width: 0; padding: 6px 0; border: 0; background: transparent; }
