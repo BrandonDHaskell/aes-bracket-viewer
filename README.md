@@ -73,6 +73,7 @@ AES Bracket Viewer adds a full-screen viewer to the AES Event Schedule view. It 
 Pick one for your browser:
 
 - **[Tampermonkey](https://www.tampermonkey.net/):** Chrome, Edge, Firefox, Safari, Opera
+- **[Userscripts](https://apps.apple.com/us/app/userscripts/id1463298887) is a free alternative for Safari mobile
 - **[Greasemonkey](https://addons.mozilla.org/firefox/addon/greasemonkey/):** Firefox
 - **[Violentmonkey](https://violentmonkey.github.io/):** Chrome, Edge, Firefox
 
