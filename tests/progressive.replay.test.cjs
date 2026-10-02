@@ -48,7 +48,7 @@ const earlier = Object.keys(capture.poolSheets).filter(id => dateOf.get(id) < '2
   for (let i = 0; i < 200 && /earlier pools/.test(status()); i++) await sleep(20);
   check('background fill-in completes', !/earlier pools/.test(status()), status().slice(0, 100));
   await sleep(1100);
-  check('chip drops the loading note when the fill-in is done', /^Last checked: \d+s ago$/.test(chipText()), chipText());
+  check('chip drops the loading note when the fill-in is done', /^Last checked: \d+s ago \u00b7 next in \d+[smh]/.test(chipText()), chipText());
   q('[data-view="stats"]').click();
   const stats = [...doc.querySelectorAll('#aes-bracket-viewer [data-canvas="stats"] .abv-stat b')].slice(0, 3).map(b => b.textContent).join(' / ');
   check('full stats after fill-in: 2-8 / 5-18 / 0.789', stats === '2-8 / 5-18 / 0.789' && !/still loading/.test(q('[data-canvas="stats"]').textContent), stats);

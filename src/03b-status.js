@@ -77,10 +77,11 @@ function renderStatusChip() {
         const age = relativeAge(syncedAt);
         text = `${state.compact ? 'Checked' : 'Last checked:'} ${age || 'just now'}`;
         if (loadingMore) text += ` \u00b7 loading earlier weekends (${state.pendingPoolSheets.size})`;
+        else if (Number.isFinite(state.nextCheckAt) && state.nextCheckAt > 0) text += ` \u00b7 next in ${formatDelay(Math.max(0, state.nextCheckAt - Date.now()))}`;
     }
     chip.textContent = notes ? `${text} (${notes})` : text;
     chip.title = ready
-        ? `The viewer last checked AES ${relativeAge(syncedAt) || 'just now'}. It checks every ${DEFAULTS.freshnessCheckMs / 1000}s while open. Select for details.`
+        ? `The viewer last checked AES ${relativeAge(syncedAt) || 'just now'}. Checks slow down when nothing is changing. Select for details.`
         : ($('[data-role="status-text"]')?.textContent || text);
     const stale = ready && Date.now() - syncedAt > STALE_CHECK_MS;
     chip.classList.toggle('warn', notes > 0 || stale);

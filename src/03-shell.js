@@ -446,7 +446,7 @@ async function openViewer() {
         if (!VIEWS.includes(hashView) && window.matchMedia?.(MOBILE_QUERY).matches) state.viewMode = 'journey';
     }
     updateViewControls();
-    state.lastCheckAt = Date.now();
+    resetChecks();
     if (!state.loaded && !state.loading) {
         await loadData({ full: true });
     } else if (state.loaded) {
@@ -588,6 +588,13 @@ function copyDiagnostics() {
     navigator.clipboard.writeText(text).then(() => setStatus('Details copied.'), () => setStatus('Copy failed. Select the Details text instead.'));
 }
 
+function updateChecksText() {
+    const info = state.checkInfo;
+    if (!info) return 'not scheduled yet';
+    const next = Number.isFinite(state.nextCheckAt) ? `, next in ${formatDelay(Math.max(0, state.nextCheckAt - Date.now()))}` : ', checking now';
+    return `every ${formatDelay(info.intervalMs)} (${checkReasonText(info)})${next}${state.prefs.notify ? '; also while the tab is in the background' : ''}`;
+}
+
 function renderDiagnostics() {
     const panel = $('[data-role="diag-body"]');
     if (!panel || !state.showDiagnostics) return;
@@ -612,7 +619,7 @@ function renderDiagnostics() {
         ['AES data last changed', formatDateTime(state.lastUpdatedTimestamp) || 'unknown'],
         ['Last checked', formatDateTime(state.lastSyncedAt)],
         ['Last loaded', formatDateTime(state.lastLoadedAt)],
-        ['Update checks', `every ${DEFAULTS.freshnessCheckMs / 1000}s while open${state.prefs.notify ? `, every ${DEFAULTS.backgroundCheckMs / 60000} min in the background` : ''}`]
+        ['Update checks', updateChecksText()]
     ];
     const perfRows = performanceRows();
     const list = (title, items, describe) => items.length

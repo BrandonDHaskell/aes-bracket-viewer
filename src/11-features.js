@@ -395,7 +395,7 @@ async function requestNotifications(checkbox) {
     savePrefs({ notify: true });
     const teams = notificationTeams();
     const who = teams.length > 1 ? `your ${teams.length} teams` : (teams[0]?.name || 'your teams');
-    setSettingsNote(`Notifications on for ${who}: new matches, results, court or time changes, and work assignments. Checks run every ${DEFAULTS.backgroundCheckMs / 60000} minutes while this tab stays open.`);
+    setSettingsNote(`Notifications on for ${who}: new matches, results, court or time changes, and work assignments. Checks keep running while this tab stays open.`);
 }
 
 /* ---------- Shareable view links ---------- */
@@ -488,11 +488,13 @@ function init() {
     }, true);
     document.addEventListener('visibilitychange', () => {
         if (!document.hidden && isOpen() && state.loaded) {
-            state.lastCheckAt = Date.now();
+            resetChecks();
             updateCountdowns();
             refreshIfChanged();
         }
     });
+    // Tests read the model and call the pure scheduling function through this hook.
+    if (window.__ABV_TEST__ && typeof window.__ABV_TEST__ === 'object') Object.assign(window.__ABV_TEST__, { state, nextCheckDelay, checkContext });
     startScheduler();
     if (state.hashState && eventKeyFromLocation()) openViewer();
 }

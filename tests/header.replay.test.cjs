@@ -58,7 +58,7 @@ const media = initial => w => {
     check('left label shows the AES update time', /^Last updated: \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(updated.textContent), updated.textContent);
     check('left label sits before the chip', updated.nextElementSibling === chip);
     check('label tooltip names the time zone', /America\/Los_Angeles/.test(updated.title), updated.title);
-    check('chip reads Last checked: Ns ago', /^Last checked: \d+s ago$/.test(chip.textContent), chip.textContent);
+    check('chip reads Last checked: Ns ago', /^Last checked: \d+s ago \u00b7 next in \d+[smh]/.test(chip.textContent), chip.textContent);
     // The age can restart when a background load confirms the data, so look for change, not a fixed count.
     const seen = new Set([chip.textContent]);
     for (let i = 0; i < 3; i += 1) { await sleep(1100); seen.add(chip.textContent); }
@@ -70,7 +70,7 @@ const media = initial => w => {
     const RealDate = t.w.Date;
     t.w.Date = class extends RealDate { static now() { return super.now() + 4 * 60000; } };
     await sleep(1100);
-    check('chip warns and shows minutes when checks are stale', chip.classList.contains('warn') && /^Last checked: 4m ago$/.test(chip.textContent), chip.textContent);
+    check('chip warns and shows minutes when checks are stale', chip.classList.contains('warn') && /^Last checked: 4m ago/.test(chip.textContent), chip.textContent);
     t.w.Date = RealDate;
     t.w.fetch = realFetch;
 
@@ -180,7 +180,7 @@ const media = initial => w => {
     await sleep(100);
     const mine = t.q('[data-role="my-teams"]');
     check('compact: My teams is one row of chips', mine.querySelectorAll('.abv-chip').length >= 2 && mine.parentElement === t.app && !mine.hidden);
-    check('compact: short label and chip', /^Updated \d{2}-\d{2} \d{2}:\d{2}$/.test(t.q('[data-role="updated-label"]').textContent) && /^Checked \d+s ago$/.test(t.q('[data-role="status-chip"]').textContent), `${t.q('[data-role="updated-label"]').textContent} / ${t.q('[data-role="status-chip"]').textContent}`);
+    check('compact: short label and chip', /^Updated \d{2}-\d{2} \d{2}:\d{2}$/.test(t.q('[data-role="updated-label"]').textContent) && /^Checked \d+s ago \u00b7 next in/.test(t.q('[data-role="status-chip"]').textContent), `${t.q('[data-role="updated-label"]').textContent} / ${t.q('[data-role="status-chip"]').textContent}`);
     const css = t.doc.getElementById('aes-bracket-viewer-styles').textContent;
     check('compact: detail panels are hidden by the compact class', /\.abv-compact \.abv-detail[^{]*\{ display: none/.test(css) && t.q('[data-detail="tournament"]').closest('.abv-compact'));
     t.w.__setNarrow(false);
