@@ -34,11 +34,12 @@ function showBanner(text) {
 
 const STALE_CHECK_MS = 180000;
 
-// Seconds under a minute, then minutes, hours, days.
+// Seconds under a minute (in steps of 10, so the text does not change every second), then
+// minutes, hours, days.
 function relativeAge(epoch) {
     const seconds = Math.floor((Date.now() - epoch) / 1000);
     if (!Number.isFinite(seconds)) return '';
-    if (seconds < 60) return `${Math.max(0, seconds)}s ago`;
+    if (seconds < 60) return `${Math.floor(Math.max(0, seconds) / 10) * 10}s ago`;
     if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
     if (seconds < 48 * 3600) return `${Math.floor(seconds / 3600)}h ago`;
     return `${Math.floor(seconds / 86400)}d ago`;
@@ -79,7 +80,8 @@ function renderStatusChip() {
         if (loadingMore) text += ` \u00b7 loading earlier weekends (${state.pendingPoolSheets.size})`;
         else if (Number.isFinite(state.nextCheckAt) && state.nextCheckAt > 0) text += ` \u00b7 next in ${formatDelay(Math.max(0, state.nextCheckAt - Date.now()))}`;
     }
-    chip.textContent = notes ? `${text} (${notes})` : text;
+    const chipText = notes ? `${text} (${notes})` : text;
+    if (chip.textContent !== chipText) chip.textContent = chipText;
     chip.title = ready
         ? `The viewer last checked AES ${relativeAge(syncedAt) || 'just now'}. Checks slow down when nothing is changing. Select for details.`
         : ($('[data-role="status-text"]')?.textContent || text);

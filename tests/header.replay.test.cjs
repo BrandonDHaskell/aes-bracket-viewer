@@ -4,6 +4,7 @@ const boot = require('./replay.cjs');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 // matchMedia stub whose max-width query can be flipped, so the change listener is exercised too.
 const media = initial => w => {
+    w.__ABV_TEST__ = {};
     const listeners = [];
     let narrow = initial;
     w.matchMedia = q => ({
@@ -59,10 +60,17 @@ const media = initial => w => {
     check('left label sits before the chip', updated.nextElementSibling === chip);
     check('label tooltip names the time zone', /America\/Los_Angeles/.test(updated.title), updated.title);
     check('chip reads Last checked: Ns ago', /^Last checked: \d+s ago \u00b7 next in \d+[smh]/.test(chip.textContent), chip.textContent);
-    // The age can restart when a background load confirms the data, so look for change, not a fixed count.
-    const seen = new Set([chip.textContent]);
-    for (let i = 0; i < 3; i += 1) { await sleep(1100); seen.add(chip.textContent); }
-    check('chip ticks every second', seen.size >= 3, [...seen].join(' | '));
+    // Under a minute the age moves in steps of 10 s; the scheduler tick re-renders it every second.
+    const S = t.w.__ABV_TEST__.state;
+    const ageAfter = async seconds => { S.lastSyncedAt = Date.now() - seconds * 1000; await sleep(1100); return chip.textContent.match(/^Last checked: (\d+s|\d+m) ago/)?.[1]; };
+    const steps = [await ageAfter(7), await ageAfter(12), await ageAfter(19), await ageAfter(59), await ageAfter(61)];
+    check('age shows seconds in steps of 10, then minutes', steps.join() === '0s,10s,10s,50s,1m', steps.join());
+    const lastChecked = () => chip.textContent.split(' \u00b7 ')[0];
+    S.lastSyncedAt = Date.now() - 12000;
+    await sleep(1100);
+    const first = lastChecked();
+    await sleep(1100);
+    check('Last checked does not change between 10 s steps', first === 'Last checked: 10s ago' && lastChecked() === first, first);
     check('chip not in warning style when fresh', !chip.classList.contains('warn'));
     // With AES unreachable the scheduler's check fails, so the last check keeps ageing.
     const realFetch = t.w.fetch;
