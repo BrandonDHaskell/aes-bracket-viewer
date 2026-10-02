@@ -503,7 +503,10 @@ function showBanner(text) {
     if (!banner) return;
     state.bannerText = text;
     if (!text) state.dismissedBanner = '';
-    $('[data-role="banner-text"]').textContent = text;
+    // The banner is an alert region: rewriting the same text would make screen readers repeat it,
+    // so write only on a change and let visibility alone show or hide it.
+    const textEl = $('[data-role="banner-text"]');
+    if (textEl.textContent !== text) textEl.textContent = text;
     banner.hidden = !text || state.dismissedBanner === text;
 }
 

@@ -117,8 +117,20 @@ const media = initial => w => {
     await sleep(300);
     const banner = t.q('[data-role="banner"]');
     check('failed refresh shows the banner', !banner.hidden && /Refresh failed/.test(banner.textContent) && banner.getAttribute('role') === 'alert', banner.textContent.trim().slice(0, 60));
+    // Repeated renders (view switches, node selection, refresh) must not rewrite the alert text.
+    let writes = 0;
+    const observer = new t.w.MutationObserver(records => { writes += records.length; });
+    observer.observe(t.q('[data-role="banner-text"]'), { childList: true, characterData: true, subtree: true });
+    for (const view of ['journey', 'stats', 'tournament']) t.click(t.q(`[data-view="${view}"]`));
+    t.click(t.q('[data-node-key]'));
+    t.click(t.q('[data-action="refresh"]'));
+    await sleep(300);
     t.click(t.q('[data-action="dismiss-banner"]'));
     check('banner can be dismissed', banner.hidden);
+    for (const view of ['journey', 'tournament']) t.click(t.q(`[data-view="${view}"]`));
+    await sleep(50);
+    check('banner text is not rewritten by repeated renders or by hiding it', writes === 0 && banner.hidden, `${writes} writes`);
+    observer.disconnect();
 
     // Detail panel collapse.
     const panel = t.q('[data-panel="tournament"]');
