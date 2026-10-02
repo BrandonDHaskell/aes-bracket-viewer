@@ -467,12 +467,14 @@ function renderStatusChip() {
     if (state.statusKind === 'notice' && state.statusNotice) text = state.statusNotice;
     else if (!state.loaded && state.loadError && !state.loading) text = 'Not loaded';
     else if (state.loaded && !state.loading) {
-        const epoch = parseEventTime(state.lastUpdatedTimestamp);
-        const age = relativeAge(Number.isFinite(epoch) ? epoch : state.lastLoadedAt);
-        text = age ? `Updated ${age}` : 'Updated';
+        const age = relativeAge(state.lastSyncedAt || state.lastLoadedAt);
+        text = age ? `Checked ${age}` : 'Checked';
     }
     chip.textContent = notes ? `${text} (${notes})` : text;
-    chip.title = $('[data-role="status-text"]')?.textContent || text;
+    const changed = state.lastUpdatedTimestamp ? formatDateTime(state.lastUpdatedTimestamp) : '';
+    chip.title = state.loaded && !state.loading
+        ? `Checked with AES ${relativeAge(state.lastSyncedAt || state.lastLoadedAt) || 'just now'}.${changed ? ` AES data last changed ${changed}.` : ''} Select for details.`
+        : ($('[data-role="status-text"]')?.textContent || text);
     chip.classList.toggle('warn', notes > 0);
 }
 
@@ -576,7 +578,8 @@ function renderDiagnostics() {
         ['Graph', `${count('match')} matches, ${count('standings')} pools, ${count('entry')} routes, ${advancement} result/placement edges (${feeds} from bracket structure)`],
         ['Unresolved references', state.unresolved.length],
         ['Duplicate WIN/LOSS branches', state.outcomeConflicts.length],
-        ['AES last update', formatDateTime(state.lastUpdatedTimestamp) || 'unknown'],
+        ['AES data last changed', formatDateTime(state.lastUpdatedTimestamp) || 'unknown'],
+        ['Last checked', formatDateTime(state.lastSyncedAt)],
         ['Last loaded', formatDateTime(state.lastLoadedAt)],
         ['Update checks', `every ${DEFAULTS.freshnessCheckMs / 1000}s while open${state.prefs.notify ? `, every ${DEFAULTS.backgroundCheckMs / 60000} min in the background` : ''}`]
     ];

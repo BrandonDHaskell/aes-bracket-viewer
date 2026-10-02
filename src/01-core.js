@@ -57,6 +57,7 @@
             poolSheetsReused: 0,
             lastUpdatedTimestamp: null,
             lastLoadedAt: null,
+            lastSyncedAt: null,           // last time AES confirmed the data is current (load or unchanged check)
             nodes: new Map(),
             edges: [],
             edgeByKey: new Map(),

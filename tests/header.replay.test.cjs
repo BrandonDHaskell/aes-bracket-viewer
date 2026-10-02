@@ -54,7 +54,9 @@ const media = initial => w => {
     check('wide: bottom navigation hidden', t.q('[data-role="bottom-nav"]').hidden);
     check('wide: tab labels are the full names', t.q('[data-view="performance"]').textContent === 'Standings & Outlook');
     const chip = t.q('[data-role="status-chip"]');
-    check('status chip reads Updated ...', /^Updated/.test(chip.textContent), chip.textContent);
+    check('status chip reads Checked ...', /^Checked/.test(chip.textContent), chip.textContent);
+    check('chip tooltip separates the check time from the AES change time', /Checked with AES .* AES data last changed /.test(chip.title), chip.title);
+    check('chip shows when the viewer checked, not when AES changed', /^Checked just now/.test(chip.textContent), chip.textContent);
 
     // Group select lives only in the Tournament toolbar.
     const groups = t.qa('[data-action="group"]');
@@ -112,7 +114,7 @@ const media = initial => w => {
     check('compact: bottom navigation switches views', t.q('[data-panel="stats"]') && !t.q('[data-panel="stats"]').hidden && nav.querySelector('[data-view="stats"]').getAttribute('aria-selected') === 'true' && nav.querySelector('[data-view="journey"]').getAttribute('aria-selected') === 'false');
     const mine = t.q('[data-role="my-teams"]');
     check('compact: My teams is one row of chips', mine.querySelectorAll('.abv-chip').length >= 2 && mine.parentElement === t.app && !mine.hidden);
-    check('compact: status chip still shown', /^Updated/.test(t.q('[data-role="status-chip"]').textContent));
+    check('compact: status chip still shown', /^Checked/.test(t.q('[data-role="status-chip"]').textContent));
     t.w.__setNarrow(false);
     check('change event returns to wide layout', !t.app.classList.contains('abv-compact') && t.q('[data-role="bottom-nav"]').hidden && t.q('[data-role="view-tabs"]').parentElement === t.q('[data-role="subbar"]'));
     check('no runtime errors (compact)', t.errors.length === 0, t.errors.slice(0, 2).join(' | '));

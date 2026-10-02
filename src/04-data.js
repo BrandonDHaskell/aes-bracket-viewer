@@ -156,7 +156,8 @@ async function loadData({ full = true } = {}) {
                 poolSheetFailures,
                 poolSheetsReused: reused,
                 lastUpdatedTimestamp: timestamp?.LastUpdatedTimestamp || state.lastUpdatedTimestamp,
-                lastLoadedAt: Date.now()
+                lastLoadedAt: Date.now(),
+                lastSyncedAt: Date.now()
             });
             clearTimeCaches();
             buildGraphModel();
@@ -219,9 +220,15 @@ async function refreshIfChanged() {
         if (!latest) return false;
         if (!state.lastUpdatedTimestamp) {
             state.lastUpdatedTimestamp = latest;
+            state.lastSyncedAt = Date.now();
+            renderStatusChip();
             return false;
         }
-        if (latest === state.lastUpdatedTimestamp) return false;
+        if (latest === state.lastUpdatedTimestamp) {
+            state.lastSyncedAt = Date.now();
+            renderStatusChip();
+            return false;
+        }
         await loadData({ full: false });
         return true;
     } catch (error) {
